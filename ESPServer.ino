@@ -1,82 +1,62 @@
 #include <ESP8266WiFi.h>
-#include <ESPAsyncTCP.h>
-#include <ESPAsyncWebServer.h>
+#include <WiFiClient.h>
+#include <ESP8266WebServer.h>
 #include <SoftwareSerial.h>
-using namespace std;
-
-char readbuffer [64];
-const char* ssid = "Arpita";
-const char* password = "arpita12";
-WiFiClient clientGet;
-AsyncWebServer server(80);
+#include "index.h"
 
 SoftwareSerial nano(3,1); //RX, TX
-//WEBSITE CODE
-const char index_html[] PROGMEM = R"rawliteral(
-<!DOCTYPE HTML><html>
-<head>
-  <title>PBU Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" href="data:,">
-  <style>
-    html {font-family: Arial; display: inline-block; text-align: center;}
-    h2 {font-size: 3.0rem;}
-    p {font-size: 3.0rem;}
-    body {max-width: 600px; margin:0px auto; padding-bottom: 25px;}
-    .switch {position: relative; display: inline-block; width: 120px; height: 68px} 
-    .switch input {display: none}
-    .slider {position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; border-radius: 6px}
-    .slider:before {position: absolute; content: ""; height: 52px; width: 52px; left: 8px; bottom: 8px; background-color: #fff; -webkit-transition: .4s; transition: .4s; border-radius: 3px}
-    input:checked+.slider {background-color: #b30000}
-    input:checked+.slider:before {-webkit-transform: translateX(52px); -ms-transform: translateX(52px); transform: translateX(52px)}
-  </style>
-</head>
-<body>
-  <h2>Welcome to Analytics Dashboard</h2><br><br>
-  %GRAPHPLACEHOLDER%
-</body>
-</html>
-)rawliteral";
+//SSID and Password of your WiFi router
+const char* ssid = "Arpita";
+const char* password = "arpita12";
+ESP8266WebServer server(80); //Server on port 80
 
-String processor(String var){
-  //Serial.println(var);
-  if(var == "GRAPHPLACEHOLDER"){
-    String graph = "";
-    
-    int i = 0; //initilaize iterator
-    while(nano.available()){
-      readbuffer[i] = nano.read();
-      i++;
-    }
-    readbuffer[i+1] = '\0';
-    graph += "<h4>Reaction Time: " + String(readbuffer);
-    return graph;
-  }
-  return String();
+//===============================================================
+// This routine is executed when you open its IP in browser
+//===============================================================
+void handleRoot() {
+ String s = MAIN_page; //Read HTML contents
+ server.send(200, "text/html", s); //Send web page
 }
 
-void setup(){
+void handletime() {
+  float time = 0;
+ if(nano.available()){
+  time = nano.parseFloat();
+  Serial.print(time);
+ }
+ String stringtime = String(time);
+ server.send(200, "text/plain", stringtime); //Send ADC value only to client ajax request
+}
+
+//==============================================================
+//                  SETUP
+//==============================================================
+void setup(void){
+  Serial.begin(115200);
   nano.begin(115200);
-  // Connect to Wi-Fi
-  WiFi.begin(ssid, password);
-  Serial.println("Connecting to WiFi..");
+  WiFi.begin(ssid, password);     //Connect to your WiFi router
+  Serial.println("");
+
+  // Wait for connection
   while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.println(".");
+    delay(500);
+    Serial.print(".");
   }
-  Serial.println(WiFi.localIP());
-  // Route for root / web page
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/html", index_html, processor);
-  });
-  // Send a GET request to <ESP_IP>/update?output=<inputMessage1>&state=<inputMessage2>
-  // server.on("/update", HTTP_GET, [] (AsyncWebServerRequest *request) {
-  //   request->send(200, "text/plain", "OK");
-  // });
-  server.begin(); // Start server
+
+  //If connection successful show IP address in serial monitor
+  Serial.println("");
+  Serial.print("Connected to ");
+  Serial.println(ssid);
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());  //IP address assigned to your ESP
+ 
+  server.on("/", handleRoot);      //Which routine to handle at root location
+  server.on("/index", handletime);      //Which routine to handle at root location
+
+  server.begin();                  //Start server
+  Serial.println("HTTP server started");
 }
 
-void loop() {
-  // float reactiontime = nano.read();
-  // clientGet.print(reactiontime);
+void loop(void){
+  server.handleClient();          //Handle client requests
 }
