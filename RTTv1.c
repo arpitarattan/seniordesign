@@ -12,46 +12,73 @@
 #include "stm32f0xx.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 
-//#include "mtwister.h"
+void inita();
 void initb();
-void setn();
-void setn(int32_t pin_num, int32_t val);
-int32_t readpin(int32_t pin_num);
+void initc();
+void setnA(int32_t pin_num, int32_t val);
+void setnB(int32_t pin_num, int32_t val);
+void setnC(int32_t pin_num, int32_t val);
+int32_t readpinB(int32_t pin_num);
+int32_t readpinA(int32_t pin_num);
+void rtt();
 
 void mysleep(int time) {
     for(int n = 0; n < time; n++);
 }
 void EXTI0_1_IRQHandler() {
-    if ((EXTI->PR & EXTI_PR_PR0) != 0) {
-        EXTI->PR |= EXTI_PR_PR0; //pb0
-        mysleep(1000000);
-        setn(8,1);
-    }
+    while(readpinB(1) == 0);
+    EXTI->PR |= EXTI_PR_PR1;
+    //while(1) {
+       // mysleep(10000);
+    setnB(0,1);
+    mysleep(1000000);
+    //setnA(7,1);
+    //rtt();
+    EXTI->PR &= ~EXTI_PR_PR1;
+   // }
+    setn0(0,0);
 }
+void EXTI2_3_IRQHandler() {
+    while(readpinA(3) == 0);
+    EXTI->PR |= EXTI_PR_PR3;
+    setnA(0,1); //turn on green led //pb0
+    mysleep(1000000);
+    EXTI->PR &= ~EXTI_PR_PR3;
+    setnA(0,0);
+}
+void EXTI4_15_IRQHandler() {
+    while(readpinA(6) == 0);
+    EXTI->PR |= EXTI_PR_PR6;
+    setnA(1,1); //turn on yellow led //pc0
+    mysleep(1000000);
+    EXTI->PR &= ~EXTI_PR_PR6;
+    setnA(1,0);
+}
+
 void init_exti(){
     RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
-    SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI0_PB;
-    EXTI->IMR |= EXTI_IMR_MR0; //exti_imr configures the corresponding the mask bit
-    EXTI->RTSR &= ~EXTI_RTSR_TR0; //disable rising trigger selection register
-    EXTI->FTSR |= EXTI_FTSR_TR0; // Trigger on falling edge (button press)
+    SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI1_PB;
+    SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI3_PA;
+    SYSCFG->EXTICR[1] |= SYSCFG_EXTICR2_EXTI6_PA;
 
-   // NVIC ->ISER[0] |= 1 <<5;
-//    NVIC ->ISER[0] |= 1 <<6;
-//    NVIC ->ISER[0] |= 1 <<7;
-}
-void delay(int number_of_seconds)
-{
-    // Converting time into milli_seconds
-    int milli_seconds = 1000 * number_of_seconds;
+    EXTI->IMR |= EXTI_IMR_MR1; //exti_imr configures the corresponding the mask bit
+    EXTI->IMR |= EXTI_IMR_MR3; //exti_imr configures the corresponding the mask bit
+    EXTI->IMR |= EXTI_IMR_MR6; //exti_imr configures the corresponding the mask bit
+    EXTI->RTSR |= EXTI_RTSR_TR1; //enable rising trigger selection register (button press)
+    EXTI->RTSR |= EXTI_RTSR_TR3; //enable rising trigger selection register (button press)
+    EXTI->RTSR |= EXTI_RTSR_TR6; //enable rising trigger selection register (button press)
+    EXTI->FTSR &= ~EXTI_FTSR_TR1; // disable Trigger on falling edge
+    EXTI->FTSR &= ~EXTI_FTSR_TR3; // disable Trigger on falling edge
+    EXTI->FTSR &= ~EXTI_FTSR_TR6; // disable Trigger on falling edge
 
-    // Storing start time
-    clock_t start_time = clock();
+    NVIC_EnableIRQ(EXTI0_1_IRQn);
+    NVIC_SetPriority(EXTI0_1_IRQn,1);
+    NVIC_EnableIRQ(EXTI2_3_IRQn);
+    NVIC_SetPriority(EXTI2_3_IRQn,2);
+    NVIC_EnableIRQ(EXTI4_15_IRQn);
+    NVIC_SetPriority(EXTI4_15_IRQn,3);
 
-    // looping till required time is not achieved
-    while (clock() < start_time + milli_seconds)
-        ;
 }
 void init_tim2() {
     RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
@@ -67,119 +94,100 @@ uint32_t end_timer() {
     TIM2->CR1 &= ~TIM_CR1_CEN;
     return TIM2->CNT;
 }
-void end_delay(int time) {
-    while(TIM2->CNT <= time) {
-
-    }
-    TIM2->CR1 &= ~TIM_CR1_CEN;
-}
-void init_tim3(int time) {
-    RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
-    while(TIM3->CNT != time) {
-        int x = TIM3 -> CNT;
-        TIM3->PSC = 48000 - 1; // sample rate = 1s/48Mhz
-        TIM3->ARR = 10000 - 1; // period/rate = 10 secons/1ms
-        TIM3->CR1 &= ~TIM_CR1_DIR;
-        TIM3->CR1 |= TIM_CR1_CEN;
-    }
-    TIM3->CR1 &= ~TIM_CR1_CEN;
-
-}
-//need the external interrupt for the button
-
-//can we have an interrupt for when the button is first pushed to turn on the green - seems unnecessary
 uint32_t standard_reaction_time_test() {
-//    int lower = 50000;
-//    int upper = 2000000;
-    //srand(time(NULL));
-    //int num = (rand() % (upper - lower + 1) + lower);
+
     int num = rand();
-//    MTRand r = seedRand(1337);
-//    double num = genRand(&r) * 10;
-    //create an array of 100 values from this seed?
-    //if i create an array of 100 values, then can I alsways take the last value, create another array go through that, then ...
-    //the only problem is that i would somhow need to keep track
-    //also it would be good if num wasn't multiplied by 10, instead be in milliseconds to increase possibilities
-    //what if i use the last value or the middle value or something to determine which index I will choose, then get that rand value.
-    //then use another method to generate a new array and again repeat
-//    int time_delay = num;
-//    init_tim3(time_delay);
-    while(readpin(0) == 0);//user needs to press button to start game
-    setn(10, 1);              //turn the red led light on
+
+    while(readpinA(5) == 0); //user needs to press button to start game
+    setnA(6,0);
+    setnA(7,0);
+    setnA(6, 1);              //turn the red led light on
     mysleep(5000000);             //a min amount of time
-    //mysleep(num);             //a random amount of time for the green led to turn on
+   // mysleep(num);             //a random amount of time for the green led to turn on
     //delay(5000);
-    setn(8,1);                //turn the green led on
-    setn(10,0);               //turn the red led off
+    setnA(7,1);                //turn the green led on
+    setnA(6,0);               //turn the red led off
     start_timer();
-    while(readpin(0) == 0); //wait for user to press button
-    setn(8,0);                //turn off green led
-    setn(10,0);
+    while(readpinA(5) == 0); //wait for user to press button
+    setnA(7,0);                //turn off green led
+    setnA(6,0);
     uint32_t reaction_time = end_timer();
     mysleep(1000000);
-    while(readpin(0) == 0){
-        setn(8,0);                //turn off green led
-        setn(10,0);
+    while(readpinA(5) == 0){
+        setnA(7,0);                //turn off green led
+        setnA(6,0);
     }
     mysleep(1000000);            //wait
     return reaction_time;
 }
-uint32_t unit_test1() {
-    //press button start timer
-    //press button end timer
-    while(readpin(0) == 0);
-    mysleep(1000000);
-    setn(8,1);
-    start_timer();
-    while(readpin(0) == 0);
-    uint32_t time = end_timer();
-    setn(8,0);
-    return time;
-}
-int main(void)
+void rtt()
 {
-	initb();
-	init_tim2();
-//	init_exti();
-//	NVIC_EnableIRQ(EXTI0_1_IRQn);
-//	NVIC_SetPriority(EXTI0_1_IRQn,1);
-	//red - pb10
-	//green - pb08;
-	while(1) {
-
-	uint32_t reaction_time = standard_reaction_time_test();
-	//uint32_t time = unit_test1();
-	mysleep(1000000);
-	}
-	for(;;);
+    while(1) {
+        uint32_t reaction_time = standard_reaction_time_test();
+        mysleep(1000000);
+    }
+    for(;;);
 }
+void inita() {
+	//input PA0
+	RCC -> AHBENR |= RCC_AHBENR_GPIOAEN;
 
+	GPIOA -> MODER &= ~GPIO_MODER_MODER0;
+//	GPIOA-> PUPDR  &= ~GPIO_PUPDR_PUPDR0;
+//	GPIOA-> PUPDR |= GPIO_PUPDR_PUPDR0_1;
+
+	//input PA1
+	GPIOA -> MODER &= ~GPIO_MODER_MODER1;
+//    GPIOA-> PUPDR  &= ~GPIO_PUPDR_PUPDR1;
+//    GPIOA-> PUPDR |= GPIO_PUPDR_PUPDR1_1;
+
+    //input PA4
+    GPIOA -> MODER &= ~GPIO_MODER_MODER4;
+    GPIOA-> PUPDR  &= ~GPIO_PUPDR_PUPDR4;
+    GPIOA-> PUPDR |= GPIO_PUPDR_PUPDR4_1;
+
+    //input PA5 - rtt button
+    GPIOA -> MODER &= ~GPIO_MODER_MODER3;
+//    GPIOA-> PUPDR  &= ~GPIO_PUPDR_PUPDR5;
+//    GPIOA-> PUPDR |= GPIO_PUPDR_PUPDR5_1;
+
+    //output PA6 - Red LED
+    GPIOA -> MODER &= ~GPIO_MODER_MODER6;
+//    GPIOA -> MODER |= GPIO_MODER_MODER6_0;
+//    GPIOA -> MODER &= ~GPIO_MODER_MODER6_1;
+
+    //output PA7 - Green LED
+    GPIOA -> MODER &= ~GPIO_MODER_MODER7;
+    GPIOA -> MODER |= GPIO_MODER_MODER7_0;
+    GPIOA -> MODER &= ~GPIO_MODER_MODER7_1;
+}
 void initb() {
-	//input PB0
-	RCC -> AHBENR |= RCC_AHBENR_GPIOBEN;
-	GPIOB -> MODER &= ~GPIO_MODER_MODER0;
-	GPIOB-> PUPDR  &= ~GPIO_PUPDR_PUPDR0;
-
-	GPIOB-> PUPDR |= GPIO_PUPDR_PUPDR0_1;
-
-	//output PB8 and PB10
-	GPIOB -> MODER &= ~GPIO_MODER_MODER8;
-	GPIOB -> MODER &= ~GPIO_MODER_MODER10;
-	GPIOB -> MODER &= ~GPIO_MODER_MODER14;
-
-	GPIOB -> MODER |= GPIO_MODER_MODER8_0;
-	GPIOB -> MODER &= ~GPIO_MODER_MODER8_1;
-
-	GPIOB -> MODER |= GPIO_MODER_MODER10_0;
-	GPIOB -> MODER &= ~GPIO_MODER_MODER10_1;
-
-	GPIOB -> MODER |= GPIO_MODER_MODER14_0;
-	GPIOB -> MODER &= ~GPIO_MODER_MODER14_1;
-
-
+   RCC -> AHBENR |= RCC_AHBENR_GPIOBEN;
+   //output PB0 - Green LED
+   GPIOB -> MODER &= ~GPIO_MODER_MODER0;
+   GPIOB -> MODER |= GPIO_MODER_MODER0_0;
+   GPIOB -> MODER &= ~GPIO_MODER_MODER0_1;
+}
+void initc() {
+   RCC -> AHBENR |= RCC_AHBENR_GPIOCEN;
+   //output PC0 - Yellow LED
+   GPIOC -> MODER &= ~GPIO_MODER_MODER0;
+   GPIOC -> MODER |= GPIO_MODER_MODER0_0;
+   GPIOC -> MODER &= ~GPIO_MODER_MODER0_1;
 }
 
-void setn(int32_t pin_num, int32_t val) {
+void setnA(int32_t pin_num, int32_t val) {
+    if(val == 0){
+
+        GPIOA -> BRR |= 1 << pin_num;
+    }
+    else{
+        GPIOA -> BSRR |= 1 << pin_num;
+
+    }
+}
+
+void setnB(int32_t pin_num, int32_t val) {
     if(val == 0){
 
         GPIOB -> BRR |= 1 << pin_num;
@@ -189,8 +197,28 @@ void setn(int32_t pin_num, int32_t val) {
 
     }
 }
+void setnC(int32_t pin_num, int32_t val) {
+    if(val == 0){
 
-int32_t readpin(int32_t pin_num) {
+        GPIOC -> BRR |= 1 << pin_num;
+    }
+    else{
+        GPIOC -> BSRR |= 1 << pin_num;
+
+    }
+}
+
+int32_t readpinA(int32_t pin_num) {
+    int32_t readit = 0;
+    readit = (GPIOA -> IDR);
+    //readit = (GPIOB -> IDR) & 0x1;
+
+    readit = (readit & (1 << pin_num)) >> pin_num;
+
+    return readit;
+}
+
+int32_t readpinB(int32_t pin_num) {
     int32_t readit = 0;
     readit = (GPIOB -> IDR);
     //readit = (GPIOB -> IDR) & 0x1;
@@ -198,6 +226,19 @@ int32_t readpin(int32_t pin_num) {
     readit = (readit & (1 << pin_num)) >> pin_num;
 
     return readit;
+}
+
+int main(void)
+{
+    inita();
+    initb();
+    initc();
+    init_exti();
+
+    while(1) {
+        //setn(8,1);
+    }
+    for(;;);
 }
 
 
