@@ -29,7 +29,7 @@ int srand_val = 4568954;
 void set_char_msg(int, char);
 void nano_wait(unsigned int);
 
-// usuless functions to make the makefile given work properly
+// useless functions to make the makefile given work properly
 void setup_bb(void){}
 void bb_write_bit(int val){}
 void bb_write_halfword(int halfword){}
@@ -41,6 +41,17 @@ uint16_t display[34] = {};
 void spi1_setup_dma(void){}
 void spi1_enable_dma(void){}
 
+// displaying on seven seg
+
+uint8_t col; // the column being scanned
+
+void drive_column(int);   // energize one of the column outputs
+int  read_rows();         // read the four row inputs
+void update_history(int col, int rows); // record the buttons of the driven column
+char get_key_event(); // wait for a button event (press or release)
+char get_keypress(void);  // wait for only a button press event.
+float getfloat(void);     // read a floating-point number from keypad
+void show_keys(void);     // demonstrate get_key_event()
 
 //===========================================================================
 // Configure GPIOC
@@ -55,20 +66,12 @@ void enable_ports(void)
     GPIOC->OTYPER |= 0xf0;
     GPIOC->PUPDR &= ~0xff;
     GPIOC->PUPDR |= 0x55;
+
+    // pop the two rand char that happen when enabling the port
     pop_queue();
     pop_queue();
 
 }
-
-uint8_t col; // the column being scanned
-
-void drive_column(int);   // energize one of the column outputs
-int  read_rows();         // read the four row inputs
-void update_history(int col, int rows); // record the buttons of the driven column
-char get_key_event(); // wait for a button event (press or release)
-char get_keypress(void);  // wait for only a button press event.
-float getfloat(void);     // read a floating-point number from keypad
-void show_keys(void);     // demonstrate get_key_event()
 
 //===========================================================================
 // Configure timer 7 to invoke the update interrupt at 1kHz
@@ -143,7 +146,7 @@ void setup_dma(void)
   // Configure DMA. They should be using channel 5.
 
   DMA1_Channel5->CCR &= ~DMA_CCR_EN;
-  DMA1_Channel5->CPAR = (uint32_t) &(SPI2->DR);
+  DMA1_Channel5->CPAR = (uint32_t) &(SPI1->DR);
   DMA1_Channel5->CMAR = (uint32_t) &(msg);
   DMA1_Channel5->CNDTR = 8;
   DMA1_Channel5->CCR |= DMA_CCR_DIR;
@@ -197,48 +200,48 @@ void init_spi2(void)
 {
   // Enable port B, can write
   // 0x00004000 instead
-  RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
+  RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
 
   // Set PB12, 13, 15 into AF mode.
   // Like earlier, they can use the
   // CMSIS calls.
-  GPIOB->MODER &= ~0xcf000000;
-  GPIOB->MODER |=  0x8a000000;
+  GPIOA->MODER &= ~(GPIO_MODER_MODER7| GPIO_MODER_MODER5 | GPIO_MODER_MODER4);
+  GPIOA->MODER |=  GPIO_MODER_MODER7_1| GPIO_MODER_MODER5_1 | GPIO_MODER_MODER4_1;
 
 
-  GPIOB->AFR[1] &= ~0xf0ff0000;
+  GPIOA->AFR[0] &= ~0xF0FF0000;
 
   // Turn on RCC clock,
   // can write 0x00004000 instead.
-  RCC->APB1ENR |= RCC_APB1ENR_SPI2EN;
+  RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
 
   // Turn off the channel
   // for configuration, can write 0x0040
-  SPI2->CR1 &= ~SPI_CR1_SPE;
+  SPI1->CR1 &= ~SPI_CR1_SPE;
 
   // Turn baud rate to lowest,
   // can write 0x0038 instead
-  SPI2->CR1 |= SPI_CR1_BR;
+  SPI1->CR1 |= SPI_CR1_BR;
 
   // Set data size to 16 bit,
   // can write 0x0f00 instead
-  SPI2->CR2 |= SPI_CR2_DS;
+  SPI1->CR2 |= SPI_CR2_DS;
 
   // Turn on master mode,
   // can write 0x0004 instead
-  SPI2->CR1 |= SPI_CR1_MSTR;
+  SPI1->CR1 |= SPI_CR1_MSTR;
 
   // Enable SSOE and NSSP,
   // can write 0x000c instead
-  SPI2->CR2 |= SPI_CR2_SSOE | SPI_CR2_NSSP;
+  SPI1->CR2 |= SPI_CR2_SSOE | SPI_CR2_NSSP;
 
   // Trigger a DMA transfer,
   // can write 0x0002 instead
-  SPI2->CR2 |= SPI_CR2_TXDMAEN;
+  SPI1->CR2 |= SPI_CR2_TXDMAEN;
 
   // Turn the spi channel back on,
   // can write 0x0040 instead
-  SPI2->CR1 |= SPI_CR1_SPE;
+  SPI1->CR1 |= SPI_CR1_SPE;
 
 
 }
@@ -251,7 +254,7 @@ void spi2_setup_dma(void)
 {
   // Given.
   setup_dma();
-  SPI2->CR2 |= SPI_CR2_TXDMAEN; // Transfer register empty DMA enable
+  SPI1->CR2 |= SPI_CR2_TXDMAEN; // Transfer register empty DMA enable
 }
 
 //===========================================================================
@@ -267,51 +270,51 @@ void spi2_enable_dma(void)
 // 4.4 SPI OLED Display
 //===========================================================================
 void init_spi1() {
-  // PA5  SPI1_SCK
-  // PA6  SPI1_MISO
-  // PA7  SPI1_MOSI
-  // PA15 SPI1_NSS
-
-  RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
-
-  GPIOA->MODER &= ~0xc000fc00;
-  GPIOA->MODER |=  0x8a00a800;
-
-
-  GPIOA->AFR[0] &= ~0xfff00000;
-  GPIOA->AFR[1] &= ~0xf0000000;
-
-  // Turn on RCC clock, can write
-  // 0x00001000 instead.
-  RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
-
-  // Turn off the channel for
-  // configuration, can write 0x0040
-  SPI1->CR1 &= ~SPI_CR1_SPE;
-
-  // Turn baud rate to lowest,
-  // can write 0x0038 instead
-  SPI1->CR1 |= SPI_CR1_BR;
-
-
-  SPI1->CR2 |= 0x0900;
-  SPI1->CR2 &= ~0x0600;
-
-  // Turn on master mode, can write
-  // 0x0004 instead
-  SPI1->CR1 |= SPI_CR1_MSTR;
-
-  // Enable SSOE and NSSP, can write
-  // 0x000c instead
-  SPI1->CR2 |= SPI_CR2_SSOE | SPI_CR2_NSSP;
-
-  // Trigger a DMA transfer, can write
-  // 0x0002 instead
-  SPI1->CR2 |= SPI_CR2_TXDMAEN;
-
-  // Turn the spi channel back on,
-  // can write 0x0040 instead
-  SPI1->CR1 |= SPI_CR1_SPE;
+//  // PA5  SPI1_SCK
+//  // PA6  SPI1_MISO
+//  // PA7  SPI1_MOSI
+//  // PA15 SPI1_NSS
+//
+//  RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+//
+//  GPIOA->MODER &= ~0xc000fc00;
+//  GPIOA->MODER |=  0x8a00a800;
+//
+//
+//  GPIOA->AFR[0] &= ~0xfff00000;
+//  GPIOA->AFR[1] &= ~0xf0000000;
+//
+//  // Turn on RCC clock, can write
+//  // 0x00001000 instead.
+//  RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
+//
+//  // Turn off the channel for
+//  // configuration, can write 0x0040
+//  SPI1->CR1 &= ~SPI_CR1_SPE;
+//
+//  // Turn baud rate to lowest,
+//  // can write 0x0038 instead
+//  SPI1->CR1 |= SPI_CR1_BR;
+//
+//
+//  SPI1->CR2 |= 0x0900;
+//  SPI1->CR2 &= ~0x0600;
+//
+//  // Turn on master mode, can write
+//  // 0x0004 instead
+//  SPI1->CR1 |= SPI_CR1_MSTR;
+//
+//  // Enable SSOE and NSSP, can write
+//  // 0x000c instead
+//  SPI1->CR2 |= SPI_CR2_SSOE | SPI_CR2_NSSP;
+//
+//  // Trigger a DMA transfer, can write
+//  // 0x0002 instead
+//  SPI1->CR2 |= SPI_CR2_TXDMAEN;
+//
+//  // Turn the spi channel back on,
+//  // can write 0x0040 instead
+//  SPI1->CR1 |= SPI_CR1_SPE;
 
 
 }
@@ -319,8 +322,8 @@ void init_spi1() {
 void spi_cmd(unsigned int data)
 {
   // Given.
-  while(!(SPI1->SR & SPI_SR_TXE)) {}
-  SPI1->DR = data;
+  while(!(SPI2->SR & SPI_SR_TXE)) {}
+  SPI2->DR = data;
 }
 void spi_data(unsigned int data)
 {
