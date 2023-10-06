@@ -29,20 +29,24 @@ void mysleep(int time) {
 void EXTI0_1_IRQHandler() {
     while(readpinB(1) == 0);
     EXTI->PR |= EXTI_PR_PR1;
+
     //while(1) {
        // mysleep(10000);
     setnB(0,1);
+
     mysleep(1000000);
     //setnA(7,1);
     //rtt();
     EXTI->PR &= ~EXTI_PR_PR1;
    // }
-    setn0(0,0);
+    setnB(0,0);
 }
 void EXTI2_3_IRQHandler() {
     while(readpinA(3) == 0);
     EXTI->PR |= EXTI_PR_PR3;
     setnA(0,1); //turn on green led //pb0
+    while(1){}
+
     mysleep(1000000);
     EXTI->PR &= ~EXTI_PR_PR3;
     setnA(0,0);
@@ -50,8 +54,12 @@ void EXTI2_3_IRQHandler() {
 void EXTI4_15_IRQHandler() {
     while(readpinA(6) == 0);
     EXTI->PR |= EXTI_PR_PR6;
+
     setnA(1,1); //turn on yellow led //pc0
+
+
     mysleep(1000000);
+
     EXTI->PR &= ~EXTI_PR_PR6;
     setnA(1,0);
 }
@@ -75,9 +83,9 @@ void init_exti(){
     NVIC_EnableIRQ(EXTI0_1_IRQn);
     NVIC_SetPriority(EXTI0_1_IRQn,1);
     NVIC_EnableIRQ(EXTI2_3_IRQn);
-    NVIC_SetPriority(EXTI2_3_IRQn,2);
+    NVIC_SetPriority(EXTI2_3_IRQn,1);
     NVIC_EnableIRQ(EXTI4_15_IRQn);
-    NVIC_SetPriority(EXTI4_15_IRQn,3);
+    NVIC_SetPriority(EXTI4_15_IRQn,1);
 
 }
 void init_tim2() {
@@ -133,28 +141,32 @@ void inita() {
 	RCC -> AHBENR |= RCC_AHBENR_GPIOAEN;
 
 	GPIOA -> MODER &= ~GPIO_MODER_MODER0;
+    GPIOA -> MODER |= GPIO_MODER_MODER0_0;
+
 //	GPIOA-> PUPDR  &= ~GPIO_PUPDR_PUPDR0;
 //	GPIOA-> PUPDR |= GPIO_PUPDR_PUPDR0_1;
 
 	//input PA1
 	GPIOA -> MODER &= ~GPIO_MODER_MODER1;
+    GPIOA -> MODER |= GPIO_MODER_MODER1_0;
+
 //    GPIOA-> PUPDR  &= ~GPIO_PUPDR_PUPDR1;
 //    GPIOA-> PUPDR |= GPIO_PUPDR_PUPDR1_1;
 
-    //input PA4
-    GPIOA -> MODER &= ~GPIO_MODER_MODER4;
-    GPIOA-> PUPDR  &= ~GPIO_PUPDR_PUPDR4;
-    GPIOA-> PUPDR |= GPIO_PUPDR_PUPDR4_1;
+    //input PA3
+    GPIOA -> MODER &= ~GPIO_MODER_MODER3;
+    GPIOA-> PUPDR  &= ~GPIO_PUPDR_PUPDR3;
+    GPIOA-> PUPDR |= GPIO_PUPDR_PUPDR3_1;
 
     //input PA5 - rtt button
-    GPIOA -> MODER &= ~GPIO_MODER_MODER3;
+    //GPIOA -> MODER &= ~GPIO_MODER_MODER5;
 //    GPIOA-> PUPDR  &= ~GPIO_PUPDR_PUPDR5;
 //    GPIOA-> PUPDR |= GPIO_PUPDR_PUPDR5_1;
 
     //output PA6 - Red LED
     GPIOA -> MODER &= ~GPIO_MODER_MODER6;
-//    GPIOA -> MODER |= GPIO_MODER_MODER6_0;
-//    GPIOA -> MODER &= ~GPIO_MODER_MODER6_1;
+    GPIOA-> PUPDR  &= ~GPIO_PUPDR_PUPDR6;
+    GPIOA-> PUPDR |= GPIO_PUPDR_PUPDR6_1;
 
     //output PA7 - Green LED
     GPIOA -> MODER &= ~GPIO_MODER_MODER7;
@@ -163,6 +175,11 @@ void inita() {
 }
 void initb() {
    RCC -> AHBENR |= RCC_AHBENR_GPIOBEN;
+   GPIOB -> MODER &= ~GPIO_MODER_MODER1;
+   GPIOB-> PUPDR  &= ~GPIO_PUPDR_PUPDR1;
+   GPIOB-> PUPDR |= GPIO_PUPDR_PUPDR1_1;
+
+
    //output PB0 - Green LED
    GPIOB -> MODER &= ~GPIO_MODER_MODER0;
    GPIOB -> MODER |= GPIO_MODER_MODER0_0;
