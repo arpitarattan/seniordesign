@@ -23,7 +23,6 @@ const char login[] = "xyz";
 
 // how many rand values you want
 //volatile int sequence_len = 12;
-int srand_val = 4568954;
 
 
 void set_char_msg(int, char);
@@ -62,46 +61,46 @@ void enable_ports(void) {
 
 
     // PC4 - PC7 set to output
-    GPIOC -> MODER |= GPIO_MODER_MODER7_0;
-    GPIOC -> MODER &= ~GPIO_MODER_MODER7_1;
+    GPIOC -> MODER |= GPIO_MODER_MODER6_0;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER6_1;
 
-    GPIOC -> MODER |= GPIO_MODER_MODER8_0;
-    GPIOC -> MODER &= ~GPIO_MODER_MODER8_1;
+    GPIOC -> MODER |= GPIO_MODER_MODER5_0;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER5_1;
 
-    GPIOC -> MODER |= GPIO_MODER_MODER9_0;
-    GPIOC -> MODER &= ~GPIO_MODER_MODER9_1;
+    GPIOC -> MODER |= GPIO_MODER_MODER4_0;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER4_1;
 
-    GPIOC -> MODER |= GPIO_MODER_MODER10_0;
-    GPIOC -> MODER &= ~GPIO_MODER_MODER10_1;
+    GPIOC -> MODER |= GPIO_MODER_MODER3_0;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER3_1;
 
 
 
     // PC4 - PC7 set to output open type
-    GPIOC -> OTYPER |= GPIO_OTYPER_OT_7;
+    GPIOC -> OTYPER |= GPIO_OTYPER_OT_6;
 
-    GPIOC -> OTYPER |= GPIO_OTYPER_OT_8;
+    GPIOC -> OTYPER |= GPIO_OTYPER_OT_5;
 
-    GPIOC -> OTYPER |= GPIO_OTYPER_OT_9;
+    GPIOC -> OTYPER |= GPIO_OTYPER_OT_4;
 
-    GPIOC -> OTYPER |= GPIO_OTYPER_OT_10;
+    GPIOC -> OTYPER |= GPIO_OTYPER_OT_3;
 
     //PC0 - PC3 set to input
-    GPIOC -> MODER &= ~GPIO_MODER_MODER3;
-    GPIOC -> MODER &= ~GPIO_MODER_MODER4;
-    GPIOC -> MODER &= ~GPIO_MODER_MODER5;
-    GPIOC -> MODER &= ~GPIO_MODER_MODER6;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER7;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER8;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER9;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER10;
 
 
     // PC0 - PC3 set to be internally pulled high
-    GPIOC -> PUPDR &= ~GPIO_PUPDR_PUPDR3_1;
-    GPIOC -> PUPDR &= ~GPIO_PUPDR_PUPDR4_1;
-    GPIOC -> PUPDR &= ~GPIO_PUPDR_PUPDR5_1;
-    GPIOC -> PUPDR &= ~GPIO_PUPDR_PUPDR6_1;
+    GPIOC -> PUPDR &= ~GPIO_PUPDR_PUPDR7_1;
+    GPIOC -> PUPDR &= ~GPIO_PUPDR_PUPDR8_1;
+    GPIOC -> PUPDR &= ~GPIO_PUPDR_PUPDR9_1;
+    GPIOC -> PUPDR &= ~GPIO_PUPDR_PUPDR10_1;
 
-    GPIOC -> PUPDR |= GPIO_PUPDR_PUPDR3_0;
-    GPIOC -> PUPDR |= GPIO_PUPDR_PUPDR4_0;
-    GPIOC -> PUPDR |= GPIO_PUPDR_PUPDR5_0;
-    GPIOC -> PUPDR |= GPIO_PUPDR_PUPDR6_0;
+    GPIOC -> PUPDR |= GPIO_PUPDR_PUPDR7_0;
+    GPIOC -> PUPDR |= GPIO_PUPDR_PUPDR8_0;
+    GPIOC -> PUPDR |= GPIO_PUPDR_PUPDR9_0;
+    GPIOC -> PUPDR |= GPIO_PUPDR_PUPDR10_0;
 
 
 
@@ -357,20 +356,87 @@ void shift_disp_right(char* str){
 //===========================================================================
 // Queue function
 //===========================================================================
+void setup_adc(void) {
+    RCC->AHBENR  |= RCC_AHBENR_GPIOAEN;                 // Enable GPIOA
+    GPIOA->MODER |= GPIO_Mode_AN << (1 << 1);           // PA1 is ADC_IN1
+
+    // Enable ADC clock
+    RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;                 // Enable Clock to ADC Unit
+    RCC->CR2     |= RCC_CR2_HSI14ON;                    // Turn on Hi-spd 14MHz Clock
+    while(!(RCC->CR2 & RCC_CR2_HSI14RDY));              // Wait for Clock
+
+    // Enabel ADC
+    ADC1->CR |= ADC_CR_ADEN;
+    while(!(ADC1->ISR & ADC_ISR_ADRDY));                // Wait for ADC to be ready
+
+    // Select channel 1
+    ADC1->CHSELR  = 0;                                  // Unselect all Channel
+    ADC1->CHSELR |= ADC_CHSELR_CHSEL1;                  // Set ADC_IN1 Channel
+    while(!(ADC1->ISR & ADC_ISR_ADRDY));                // Wait for ADC to be ready
+}
+
+//============================================================================
+// Varables for boxcar averaging.
+//============================================================================
+#define BCSIZE 32
+int bcsum = 0;
+int boxcar[BCSIZE];
+int bcn = 0;
+int srand_val = 1;
+int level = 0;
+
+//============================================================================
+// Timer 2 ISR
+//============================================================================
+// Write the Timer 2 ISR here.  Be sure to give it the right name.
+void TIM2_IRQHandler() {
+    TIM2->SR &= ~TIM_SR_UIF;
+
+    // Start ADC
+    ADC1->CR |= ADC_CR_ADSTART;
+
+    // Wait until EOC bit is set
+    while((ADC1->ISR & ADC_ISR_EOC) == 0);
+
+    // Implement boxcar averaging
+    bcsum -= boxcar[bcn];
+    bcsum += boxcar[bcn] = ADC1->DR;
+    bcn += 1;
+    if (bcn >= BCSIZE)
+        bcn = 0;
+    srand_val = bcsum * ADC1->DR;
+}
+
+//============================================================================
+// init_tim2()
+//============================================================================
+void init_tim2(void) {
+    // 10 Hz
+    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+    TIM2->PSC = 4800 - 1;
+    TIM2->ARR = 1000 - 1;
+    TIM2->DIER |= TIM_DIER_UIE;
+    TIM2->CR1 |= TIM_CR1_CEN;
+    NVIC->ISER[0] |= 1 << TIM2_IRQn;
+}
 
 
-
-void rand_queue(int seq)
+void rand_queue(int flag, int seq)
 {
   //display();
   //dequeue();
-	srand(srand_val);
+
+	srand(srand_val * srand_val * level);
 	for(int i =0; i< seq ; i++){
 		int n = rand() % 16;
 		enqueue(n);
 	}
 	//display();
 	enqueue(69);
+	if(flag){
+		dequeue();
+	}
+
 	//display();
 
 	//printf("\n\nnumber first in queue is %d\n", num);
@@ -400,14 +466,14 @@ int dequeue()
   int num = 0;
     if (front == NULL)
     {
-        printf("\n\nqueue is empty \n");
+       // printf("\n\nqueue is empty \n");
     }
     else
     {
         struct node *temp;
         temp = front;
         front = front->next;
-        printf("\n\n%d deleted", temp->data);
+        //printf("\n\n%d deleted", temp->data);
         num = temp -> data;
         free(temp);
     }
@@ -454,10 +520,13 @@ void display_rand(char* string){
     string[6] = ' ';
 
     print_string(string);
+    enqueue(69);
+
 }
 
-void play_SMT(char* string, int seq){
+int play_SMT(char* string, int level){
 	int i = 1;
+	//enqueue(69);
 	for(;;){
 			char c = middle_char();
 
@@ -469,19 +538,21 @@ void play_SMT(char* string, int seq){
 
 			print_string(string);
 
-			// gets number from queue and then changes it to char.
-			int num_ran = dequeue();
-
-			if(c != dig_char[num_ran]){
-				print_string("too bad");
-				break;
-			}
-			else if(i == seq){
-				nano_wait(500000000);
-				print_string("yay  yay");
-				break;
-			}
-			i++;
+//			// gets number from queue and then changes it to char.
+//			int num_ran = dequeue();
+//
+//			if(c != dig_char[num_ran]){
+//				print_string("too bad");
+//				nano_wait(500000000);
+//				return 0;
+//			}
+//			else if(i == level){
+//				nano_wait(500000000);
+//				print_string("yay  yay");
+//				nano_wait(800000000);
+//				return 1;
+//			}
+//			i++;
 
 
 		}
@@ -500,51 +571,72 @@ int main(void) {
 	    setup_dma();
 	    enable_dma();
 	    init_tim15();
-	    int seq = 0;
+
+	    setup_adc();
+	    init_tim2();
+
 
 
 	    char string[9] = "        ";
 	    print_string(string);
 	    // Enables the keypad after
 	    enable_ports();
-	    print_string("SELECT");
-	    while(1){
-	    	char first = middle_char();
-	    	string[0] = 'S';
-	    	string[1] = 'E';
-	    	string[2] = 'L';
-	    	string[3] = 'E';
-	    	string[4] = 'C';
-	    	string[5] = 'T';
-	    	string[6] = ' ';
-	    	string[7] = first;
-	    	print_string(string);
-	    	nano_wait(5000000000);
 
-	    	seq = (first - '0');
-	    	break;
+	    int flag = 0;
+	    int correct = 1;
 
 
-	    }
-    	string[0] = ' ';
-    	string[1] = ' ';
-    	string[2] = ' ';
-    	string[3] = ' ';
-    	string[4] = ' ';
-    	string[5] = ' ';
-    	string[6] = ' ';
-    	string[7] = ' ';
-    	print_string(string);
-    	nano_wait(5000000000);
+		print_string("PUSH ONE");
+		while(1){
+			char first = middle_char();
+			if(first == '1'){
+					break;
+			}
 
-		rand_queue(seq);
 
-		RCC->AHBENR &= ~RCC_AHBENR_GPIOCEN;
-	    display_rand(string);
-	    // Enables the keypad after
-	    enable_ports();
+		}
 
-	    play_SMT(string, seq);
+
+
+
+		while(correct){
+			level += 1;
+
+			string[0] = ' ';
+			string[1] = ' ';
+			string[2] = ' ';
+			string[3] = ' ';
+			string[4] = ' ';
+			string[5] = ' ';
+			string[6] = ' ';
+			string[7] = ' ';
+			print_string(string);
+			nano_wait(5000000000);
+
+			rand_queue(flag, level);
+
+			RCC->AHBENR &= ~RCC_AHBENR_GPIOCEN;
+			display_rand(string);
+			// Enables the keypad after
+			enable_ports();
+
+			correct = play_SMT(string, level);
+			flag = 1;
+			//dequeue();
+		}
+		string[0] = ' ';
+		string[1] = ' ';
+		string[2] = ' ';
+		string[3] = ' ';
+		string[4] = ' ';
+		string[5] = ' ';
+		string[6] = '0' + (level - 1);
+		string[7] = ' ';
+		print_string(string);
+		nano_wait(5000000000);
+
+
+
 
 	    //clear_queue();
 
