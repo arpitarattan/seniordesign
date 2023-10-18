@@ -40,6 +40,7 @@ void spi1_display2(const char *string){}
 uint16_t display[34] = {};
 void spi1_setup_dma(void){}
 void spi1_enable_dma(void){}
+void init_spi1() {}
 
 // displaying on seven seg
 
@@ -56,22 +57,63 @@ void show_keys(void);     // demonstrate get_key_event()
 //===========================================================================
 // Configure GPIOC
 //===========================================================================
-void enable_ports(void)
-{
-    // Only enable port C for the keypad. Given.
-    RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
-    GPIOC->MODER &= ~0xffff;
-    GPIOC->MODER |= 0x55 << (4*2);
-    GPIOC->OTYPER &= ~0xff;
-    GPIOC->OTYPER |= 0xf0;
-    GPIOC->PUPDR &= ~0xff;
-    GPIOC->PUPDR |= 0x55;
+void enable_ports(void) {
+    RCC -> AHBENR |= RCC_AHBENR_GPIOCEN;
 
-    // pop the two rand char that happen when enabling the port
+
+    // PC4 - PC7 set to output
+    GPIOC -> MODER |= GPIO_MODER_MODER7_0;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER7_1;
+
+    GPIOC -> MODER |= GPIO_MODER_MODER8_0;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER8_1;
+
+    GPIOC -> MODER |= GPIO_MODER_MODER9_0;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER9_1;
+
+    GPIOC -> MODER |= GPIO_MODER_MODER10_0;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER10_1;
+
+
+
+    // PC4 - PC7 set to output open type
+    GPIOC -> OTYPER |= GPIO_OTYPER_OT_7;
+
+    GPIOC -> OTYPER |= GPIO_OTYPER_OT_8;
+
+    GPIOC -> OTYPER |= GPIO_OTYPER_OT_9;
+
+    GPIOC -> OTYPER |= GPIO_OTYPER_OT_10;
+
+    //PC0 - PC3 set to input
+    GPIOC -> MODER &= ~GPIO_MODER_MODER3;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER4;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER5;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER6;
+
+
+    // PC0 - PC3 set to be internally pulled high
+    GPIOC -> PUPDR &= ~GPIO_PUPDR_PUPDR3_1;
+    GPIOC -> PUPDR &= ~GPIO_PUPDR_PUPDR4_1;
+    GPIOC -> PUPDR &= ~GPIO_PUPDR_PUPDR5_1;
+    GPIOC -> PUPDR &= ~GPIO_PUPDR_PUPDR6_1;
+
+    GPIOC -> PUPDR |= GPIO_PUPDR_PUPDR3_0;
+    GPIOC -> PUPDR |= GPIO_PUPDR_PUPDR4_0;
+    GPIOC -> PUPDR |= GPIO_PUPDR_PUPDR5_0;
+    GPIOC -> PUPDR |= GPIO_PUPDR_PUPDR6_0;
+
+
+
+
+
+
     pop_queue();
     pop_queue();
+
 
 }
+
 
 //===========================================================================
 // Configure timer 7 to invoke the update interrupt at 1kHz
@@ -194,8 +236,10 @@ void init_tim15(void)
 }
 
 //===========================================================================
-// Initialize the SPI2 peripheral.
+// Initialize the SPI1 peripheral.
 //===========================================================================
+
+// actually using SPI 1
 void init_spi2(void)
 {
   // Enable port B, can write
@@ -266,58 +310,6 @@ void spi2_enable_dma(void)
   enable_dma();
 }
 
-//===========================================================================
-// 4.4 SPI OLED Display
-//===========================================================================
-void init_spi1() {
-//  // PA5  SPI1_SCK
-//  // PA6  SPI1_MISO
-//  // PA7  SPI1_MOSI
-//  // PA15 SPI1_NSS
-//
-//  RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
-//
-//  GPIOA->MODER &= ~0xc000fc00;
-//  GPIOA->MODER |=  0x8a00a800;
-//
-//
-//  GPIOA->AFR[0] &= ~0xfff00000;
-//  GPIOA->AFR[1] &= ~0xf0000000;
-//
-//  // Turn on RCC clock, can write
-//  // 0x00001000 instead.
-//  RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
-//
-//  // Turn off the channel for
-//  // configuration, can write 0x0040
-//  SPI1->CR1 &= ~SPI_CR1_SPE;
-//
-//  // Turn baud rate to lowest,
-//  // can write 0x0038 instead
-//  SPI1->CR1 |= SPI_CR1_BR;
-//
-//
-//  SPI1->CR2 |= 0x0900;
-//  SPI1->CR2 &= ~0x0600;
-//
-//  // Turn on master mode, can write
-//  // 0x0004 instead
-//  SPI1->CR1 |= SPI_CR1_MSTR;
-//
-//  // Enable SSOE and NSSP, can write
-//  // 0x000c instead
-//  SPI1->CR2 |= SPI_CR2_SSOE | SPI_CR2_NSSP;
-//
-//  // Trigger a DMA transfer, can write
-//  // 0x0002 instead
-//  SPI1->CR2 |= SPI_CR2_TXDMAEN;
-//
-//  // Turn the spi channel back on,
-//  // can write 0x0040 instead
-//  SPI1->CR1 |= SPI_CR1_SPE;
-
-
-}
 
 void spi_cmd(unsigned int data)
 {
