@@ -131,12 +131,12 @@ void update_history(int c, int rows)
 
 void drive_column(int c)
 {
-    GPIOC->BSRR = 0x7800000 | ~(1 << (c + 7));
+    GPIOC->BSRR = 0x780000 | ~(1 << (c + 3));
 }
 
 int read_rows()
 {
-    return ((~GPIOC->IDR) & 0x78) >> 3;
+    return ((~GPIOC->IDR) & 0x780) >> 7;
 }
 
 char get_key_event() {
