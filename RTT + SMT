@@ -1,0 +1,935 @@
+#include "stm32f0xx.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+
+
+// ------------------v--SMT--v--------------------//
+
+char dig_char[] = "0123456789ABCDEF";
+
+
+
+struct node
+{
+    int data;
+    struct node *next;
+};
+
+struct node *front = NULL;
+struct node *rear = NULL;
+
+//void display();
+void enqueue(int);
+int dequeue();
+
+// Be sure to change this to your login...
+const char login[] = "xyz";
+
+// how many rand values you want
+//volatile int sequence_len = 12;
+
+
+void set_char_msg(int, char);
+void nano_wait(unsigned int);
+
+// useless functions to make the makefile given work properly
+void setup_bb(void){}
+void bb_write_bit(int val){}
+void bb_write_halfword(int halfword){}
+void drive_bb(void){}
+void spi1_init_oled(){}
+void spi1_display1(const char *string){}
+void spi1_display2(const char *string){}
+uint16_t display[34] = {};
+void spi1_setup_dma(void){}
+void spi1_enable_dma(void){}
+void init_spi1() {}
+
+// displaying on seven seg
+
+uint8_t col; // the column being scanned
+
+void drive_column(int);   // energize one of the column outputs
+int  read_rows();         // read the four row inputs
+void update_history(int col, int rows); // record the buttons of the driven column
+char get_key_event(); // wait for a button event (press or release)
+char get_keypress(void);  // wait for only a button press event.
+float getfloat(void);     // read a floating-point number from keypad
+void show_keys(void);     // demonstrate get_key_event()
+
+//===========================================================================
+// Configure GPIOC
+//===========================================================================
+void enable_ports(void) {
+    RCC -> AHBENR |= RCC_AHBENR_GPIOCEN;
+
+
+    // PC4 - PC7 set to output
+    GPIOC -> MODER |= GPIO_MODER_MODER6_0;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER6_1;
+
+    GPIOC -> MODER |= GPIO_MODER_MODER5_0;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER5_1;
+
+    GPIOC -> MODER |= GPIO_MODER_MODER4_0;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER4_1;
+
+    GPIOC -> MODER |= GPIO_MODER_MODER3_0;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER3_1;
+
+
+
+    // PC4 - PC7 set to output open type
+    GPIOC -> OTYPER |= GPIO_OTYPER_OT_6;
+
+    GPIOC -> OTYPER |= GPIO_OTYPER_OT_5;
+
+    GPIOC -> OTYPER |= GPIO_OTYPER_OT_4;
+
+    GPIOC -> OTYPER |= GPIO_OTYPER_OT_3;
+
+    //PC0 - PC3 set to input
+    GPIOC -> MODER &= ~GPIO_MODER_MODER7;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER8;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER9;
+    GPIOC -> MODER &= ~GPIO_MODER_MODER10;
+
+
+    // PC0 - PC3 set to be internally pulled high
+    GPIOC -> PUPDR &= ~GPIO_PUPDR_PUPDR7_1;
+    GPIOC -> PUPDR &= ~GPIO_PUPDR_PUPDR8_1;
+    GPIOC -> PUPDR &= ~GPIO_PUPDR_PUPDR9_1;
+    GPIOC -> PUPDR &= ~GPIO_PUPDR_PUPDR10_1;
+
+    GPIOC -> PUPDR |= GPIO_PUPDR_PUPDR7_0;
+    GPIOC -> PUPDR |= GPIO_PUPDR_PUPDR8_0;
+    GPIOC -> PUPDR |= GPIO_PUPDR_PUPDR9_0;
+    GPIOC -> PUPDR |= GPIO_PUPDR_PUPDR10_0;
+
+
+
+
+
+
+    pop_queue();
+    pop_queue();
+
+
+}
+
+
+//===========================================================================
+// Configure timer 7 to invoke the update interrupt at 1kHz
+// Copy from lab 8 or 9.
+//===========================================================================
+void init_tim7()
+{
+  // Turn on clock, can write
+  // 0x20 instead
+  RCC->APB1ENR |= RCC_APB1ENR_TIM7EN;
+
+  // Configure to run at 1kHz
+  TIM7->PSC = 48-1;
+  TIM7->ARR = 1000-1;
+
+  // Enable the interrupt,
+  // can write 0x01 instead
+  TIM7->DIER |= TIM_DIER_UIE;
+
+  // Unmask the interrupt
+  NVIC->ISER[0] |= 1<<TIM7_IRQn;
+
+  // Enable timer, can write
+  // 0x01 instead
+  TIM7->CR1 |= TIM_CR1_CEN;
+}
+
+//===========================================================================
+// Copy the Timer 7 ISR from lab 9
+//===========================================================================
+// TODO To be copied
+void TIM7_IRQHandler(void)
+{
+  // Code is given in lab 9
+  TIM7->SR &= ~TIM_SR_UIF;
+  int rows = read_rows();
+  update_history(col, rows);
+  col = (col + 1) & 3;
+  drive_column(col);
+}
+
+//===========================================================================
+// 4.1 Bit Bang SPI LED Array
+//===========================================================================
+// Given
+int msg_index = 0;
+uint16_t msg[8] = { 0x0000,0x0100,0x0200,0x0300,0x0400,0x0500,0x0600,0x0700 };
+extern const char font[];
+
+//===========================================================================
+// Configure PB12 (NSS), PB13 (SCK), and PB15 (MOSI) for outputs
+//===========================================================================
+
+void small_delay(void)
+{
+  // Given.
+  nano_wait(50000);
+}
+
+
+
+//============================================================================
+// setup_dma()
+// Copy this from lab 8 or lab 9.
+// Write to SPI2->DR instead of GPIOB->ODR.
+//============================================================================
+void setup_dma(void)
+{
+  // Turn on DMA1
+  RCC->AHBENR |= RCC_AHBENR_DMA1EN;
+
+  // Configure DMA. They should be using channel 5.
+
+  DMA1_Channel5->CCR &= ~DMA_CCR_EN;
+  DMA1_Channel5->CPAR = (uint32_t) &(SPI1->DR);
+  DMA1_Channel5->CMAR = (uint32_t) &(msg);
+  DMA1_Channel5->CNDTR = 8;
+  DMA1_Channel5->CCR |= DMA_CCR_DIR;
+  DMA1_Channel5->CCR |= DMA_CCR_MINC;
+  DMA1_Channel5->CCR &= ~DMA_CCR_PINC;
+  DMA1_Channel5->CCR |= 0x0500;
+  DMA1_Channel5->CCR |= DMA_CCR_CIRC;
+
+}
+
+//============================================================================
+// enable_dma()
+// Copy this from lab 8 or lab 9.
+//============================================================================
+void enable_dma(void)
+{
+  // Enable the DMA.
+  DMA1_Channel5->CCR |= DMA_CCR_EN;
+
+}
+
+
+void init_tim15(void)
+{
+  // Turn timer's clock on,
+  // can write 0x0001000 instead
+  RCC->APB2ENR |= RCC_APB2ENR_TIM15EN;
+
+  // Turn timer off, can write
+  // 0x0001 instead.
+  TIM15->CR1 &= ~TIM_CR1_CEN;
+
+  // Configure PSC and ARR to
+  // 1kHz
+  TIM15->PSC = 48-1;
+  TIM15->ARR = 1000-1;
+
+  // Trigger the DMA transfer,
+  // can write 0x0100 instead.
+  TIM15->DIER |= TIM_DIER_UDE;
+
+  // Turn timer on, can write
+  // 0x0001 instead.
+  TIM15->CR1 |= TIM_CR1_CEN;
+}
+
+//===========================================================================
+// Initialize the SPI1 peripheral.
+//===========================================================================
+
+// actually using SPI 1
+void init_spi2(void)
+{
+  // Enable port B, can write
+  // 0x00004000 instead
+  RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+
+  // Set PB12, 13, 15 into AF mode.
+  // Like earlier, they can use the
+  // CMSIS calls.
+  GPIOA->MODER &= ~(GPIO_MODER_MODER7| GPIO_MODER_MODER5 | GPIO_MODER_MODER4);
+  GPIOA->MODER |=  GPIO_MODER_MODER7_1| GPIO_MODER_MODER5_1 | GPIO_MODER_MODER4_1;
+
+
+  GPIOA->AFR[0] &= ~0xF0FF0000;
+
+  // Turn on RCC clock,
+  // can write 0x00004000 instead.
+  RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
+
+  // Turn off the channel
+  // for configuration, can write 0x0040
+  SPI1->CR1 &= ~SPI_CR1_SPE;
+
+  // Turn baud rate to lowest,
+  // can write 0x0038 instead
+  SPI1->CR1 |= SPI_CR1_BR;
+
+  // Set data size to 16 bit,
+  // can write 0x0f00 instead
+  SPI1->CR2 |= SPI_CR2_DS;
+
+  // Turn on master mode,
+  // can write 0x0004 instead
+  SPI1->CR1 |= SPI_CR1_MSTR;
+
+  // Enable SSOE and NSSP,
+  // can write 0x000c instead
+  SPI1->CR2 |= SPI_CR2_SSOE | SPI_CR2_NSSP;
+
+  // Trigger a DMA transfer,
+  // can write 0x0002 instead
+  SPI1->CR2 |= SPI_CR2_TXDMAEN;
+
+  // Turn the spi channel back on,
+  // can write 0x0040 instead
+  SPI1->CR1 |= SPI_CR1_SPE;
+
+
+}
+
+//===========================================================================
+// Configure the SPI2 peripheral to trigger the DMA channel when the
+// transmitter is empty.
+//===========================================================================
+void spi2_setup_dma(void)
+{
+  // Given.
+  setup_dma();
+  SPI1->CR2 |= SPI_CR2_TXDMAEN; // Transfer register empty DMA enable
+}
+
+//===========================================================================
+// Enable the DMA channel.
+//===========================================================================
+void spi2_enable_dma(void)
+{
+  // Given.
+  enable_dma();
+}
+
+
+void spi_cmd(unsigned int data)
+{
+  // Given.
+  while(!(SPI2->SR & SPI_SR_TXE)) {}
+  SPI2->DR = data;
+}
+void spi_data(unsigned int data)
+{
+  // Given.
+  spi_cmd(data | 0x200);
+}
+
+
+
+char get_char(){
+    char c = get_keypress();
+    return c;
+
+}
+
+
+void print_string(const char str[])
+{
+    const char *p = str;
+    for(int i=0; i<8; i++) {
+        if (*p == '\0') {
+            msg[i] = (i<<8);
+        } else {
+            msg[i] = (i<<8) | font[*p & 0x7f] | (*p & 0x80);
+            p++;
+        }
+    }
+}
+
+void shift_disp_right(char* str){
+	char str_7 = str[7];
+	char str_6 = str[6];
+	char str_5 = str[5];
+	str[6] = str_7;
+	str[5] = str_6;
+	str[4] = str_5;
+}
+
+//===========================================================================
+// Queue function
+//===========================================================================
+void setup_adc(void) {
+    RCC->AHBENR  |= RCC_AHBENR_GPIOAEN;                 // Enable GPIOA
+    GPIOA->MODER |= GPIO_Mode_AN << (1 << 1);           // PA1 is ADC_IN1
+
+    // Enable ADC clock
+    RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;                 // Enable Clock to ADC Unit
+    RCC->CR2     |= RCC_CR2_HSI14ON;                    // Turn on Hi-spd 14MHz Clock
+    while(!(RCC->CR2 & RCC_CR2_HSI14RDY));              // Wait for Clock
+
+    // Enabel ADC
+    ADC1->CR |= ADC_CR_ADEN;
+    while(!(ADC1->ISR & ADC_ISR_ADRDY));                // Wait for ADC to be ready
+
+    // Select channel 1
+    ADC1->CHSELR  = 0;                                  // Unselect all Channel
+    ADC1->CHSELR |= ADC_CHSELR_CHSEL1;                  // Set ADC_IN1 Channel
+    while(!(ADC1->ISR & ADC_ISR_ADRDY));                // Wait for ADC to be ready
+}
+
+//============================================================================
+// Varables for boxcar averaging.
+//============================================================================
+#define BCSIZE 32
+int bcsum = 0;
+int boxcar[BCSIZE];
+int bcn = 0;
+int srand_val = 1;
+int level = 0;
+
+//============================================================================
+// Timer 2 ISR
+//============================================================================
+// Write the Timer 2 ISR here.  Be sure to give it the right name.
+void TIM3_IRQHandler() {
+    TIM3->SR &= ~TIM_SR_UIF;
+
+    // Start ADC
+    ADC1->CR |= ADC_CR_ADSTART;
+
+    // Wait until EOC bit is set
+    while((ADC1->ISR & ADC_ISR_EOC) == 0);
+
+    // Implement boxcar averaging
+    bcsum -= boxcar[bcn];
+    bcsum += boxcar[bcn] = ADC1->DR;
+    bcn += 1;
+    if (bcn >= BCSIZE)
+        bcn = 0;
+    srand_val = bcsum * ADC1->DR;
+}
+
+//============================================================================
+// init_tim2()
+//============================================================================
+void init_tim3(void) {
+    // 10 Hz
+    RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
+    TIM3->PSC = 4800 - 1;
+    TIM3->ARR = 1000 - 1;
+    TIM3->DIER |= TIM_DIER_UIE;
+    TIM3->CR1 |= TIM_CR1_CEN;
+    NVIC->ISER[0] |= 1 << TIM3_IRQn;
+}
+
+
+void rand_queue()
+{
+  //display();
+  //dequeue();
+
+	srand(srand_val * srand_val * level);
+	for(int i =0; i< level ; i++){
+		int n = rand() % 16;
+		enqueue(n);
+	}
+	//display();
+
+
+	//display();
+
+	//printf("\n\nnumber first in queue is %d\n", num);
+}
+
+void enqueue(int item)
+{
+    struct node *nptr = malloc(sizeof(struct node));
+    nptr->data = item;
+    nptr->next = NULL;
+    if (rear == NULL)
+    {
+        front = nptr;
+        rear = nptr;
+    }
+    else
+    {
+        rear->next = nptr;
+        rear = rear->next;
+    }
+}
+
+
+
+int dequeue()
+{
+  int num = 0;
+    if (front == NULL)
+    {
+       // printf("\n\nqueue is empty \n");
+    }
+    else
+    {
+        struct node *temp;
+        temp = front;
+        if(front == rear){
+           rear = NULL;
+		}
+        front = front->next;
+        //printf("\n\n%d deleted", temp->data);
+        num = temp -> data;
+        free(temp);
+    }
+  return(num);
+}
+
+
+
+
+
+//===========================================================================
+// GAME functions
+//===========================================================================
+void display_rand(char* string){
+	int i = 0;
+    while(i < level){
+    	int num_queue = dequeue();
+
+    	int x = level;
+
+    	char rand_c = dig_char[num_queue];
+
+
+    	string[6] = rand_c;
+    	print_string(string);
+    	nano_wait(700000000);
+    	string[6] = ' ';
+    	print_string(string);
+    	nano_wait(200000000);
+
+
+
+    	enqueue(num_queue);
+    	i++;
+    }
+    nano_wait(400000000);
+    string[5] = 'G';
+    string[6] = 'O';
+
+
+    print_string(string);
+    nano_wait(500000000);
+    string[5] = ' ';
+    string[6] = ' ';
+
+    print_string(string);
+    //enqueue(69);
+
+}
+
+int play_SMT(char* string, int level){
+	int i = 1;
+	//enqueue(69);
+	for(;;){
+			char c = get_char();
+
+			// used to push data from digit 4 -7 adn repeat 1234 -> 5234 -> 5634 ...
+			//int digit = i % 4;
+			shift_disp_right(string);
+			string[7] = c;
+
+
+			print_string(string);
+
+			// gets number from queue and then changes it to char.
+			int num_ran = dequeue();
+
+			if(c != dig_char[num_ran]){
+				print_string("too bad");
+				nano_wait(500000000);
+				return 0;
+			}
+			else if(i == level){
+				nano_wait(500000000);
+				print_string("yay  yay");
+				nano_wait(800000000);
+				return 1;
+			}
+			i++;
+
+
+		}
+}
+
+void clear_queue(){
+	int num = dequeue();
+	while(num != NULL){
+		num = dequeue();
+	}
+}
+
+void setup_SMT(){
+    init_tim7();
+    setup_bb();
+    init_spi2();
+    setup_dma();
+    enable_dma();
+    init_tim15();
+
+    setup_adc();
+    init_tim3();
+
+
+
+    char string[9] = "        ";
+    print_string(string);
+    // Enables the keypad after
+    enable_ports();
+
+    int correct = 1;
+
+
+	print_string("PUSH ONE");
+	while(1){
+		char first = get_char();
+		if(first == '1'){
+				break;
+		}
+
+
+	}
+
+	int play_agian = 1;
+	while(play_agian != 0){
+
+		while(correct){
+			level += 1;
+
+			string[0] = ' ';
+			string[1] = ' ';
+			string[2] = ' ';
+			string[3] = ' ';
+			string[4] = ' ';
+			string[5] = ' ';
+			string[6] = ' ';
+			string[7] = ' ';
+			print_string(string);
+			nano_wait(5000000000);
+
+			rand_queue();
+
+			RCC->AHBENR &= ~RCC_AHBENR_GPIOCEN;
+			display_rand(string);
+			// Enables the keypad after
+			enable_ports();
+
+			correct = play_SMT(string, level);
+			clear_queue();
+		}
+		clear_queue();
+		string[0] = ' ';
+		string[1] = ' ';
+		string[2] = ' ';
+		string[3] = ' ';
+		string[4] = ' ';
+		string[5] = ' ';
+		string[6] = '0' + (level - 1);
+		string[7] = ' ';
+		print_string(string);
+		nano_wait(5000000000);
+
+		print_string("    1or0");
+		play_agian = get_char() - '0';
+		correct = 1;
+		level = 0;
+	}
+	print_string("     bye");
+	nano_wait(5000000000);
+
+	print_string("        ");
+
+
+
+
+    clear_queue();
+}
+
+
+
+// ------------------^--SMT--^--------------------//
+
+
+
+// --------------------v--RTT--v----------------------//
+
+void inita();
+void initb();
+void initc();
+void setnA(int32_t pin_num, int32_t val);
+void setnB(int32_t pin_num, int32_t val);
+void setnC(int32_t pin_num, int32_t val);
+int32_t readpinB(int32_t pin_num);
+int32_t readpinA(int32_t pin_num);
+void rtt();
+void start_timer();
+uint32_t end_timer();
+
+void mysleep(int time) {
+    for(int n = 0; n < time; n++);
+}
+void EXTI0_1_IRQHandler() {
+    while(readpinB(1) == 0); //PB1 - VMT
+    EXTI->PR |= EXTI_PR_PR1;
+    //while(1) {
+       // mysleep(10000);
+    setnB(0,1);
+    mysleep(1000000);
+    //setnA(7,1);
+    //rtt();
+    EXTI->PR &= ~EXTI_PR_PR1;
+   // }
+    setnB(0,0);
+}
+void EXTI2_3_IRQHandler() {
+    inita();
+    initb();
+    initc();
+    init_tim2();
+
+
+    while(readpinA(3) == 0); //PA3 - RTT
+    EXTI->PR |= EXTI_PR_PR3;
+    setnA(0,1); //turn on green led //pa0
+    setnA(1,1); //turn on red led
+    start_timer();
+    rtt();
+    EXTI->PR &= ~EXTI_PR_PR3;
+}
+void EXTI4_15_IRQHandler() {
+    while(readpinA(6) == 0); //PA6 - SMT
+    EXTI->PR |= EXTI_PR_PR6;
+	setup_SMT();
+
+    EXTI->PR &= ~EXTI_PR_PR6;
+}
+
+void init_exti(){
+    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
+    SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI1_PB;
+    SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI3_PA;
+    SYSCFG->EXTICR[1] |= SYSCFG_EXTICR2_EXTI6_PA;
+
+    EXTI->IMR |= EXTI_IMR_MR1; //exti_imr configures the corresponding the mask bit
+    EXTI->IMR |= EXTI_IMR_MR3; //exti_imr configures the corresponding the mask bit
+    EXTI->IMR |= EXTI_IMR_MR6; //exti_imr configures the corresponding the mask bit
+    EXTI->RTSR |= EXTI_RTSR_TR1; //enable rising trigger selection register (button press)
+    EXTI->RTSR |= EXTI_RTSR_TR3; //enable rising trigger selection register (button press)
+    EXTI->RTSR |= EXTI_RTSR_TR6; //enable rising trigger selection register (button press)
+    EXTI->FTSR &= ~EXTI_FTSR_TR1; // disable Trigger on falling edge
+    EXTI->FTSR &= ~EXTI_FTSR_TR3; // disable Trigger on falling edge
+    EXTI->FTSR &= ~EXTI_FTSR_TR6; // disable Trigger on falling edge
+
+    NVIC_EnableIRQ(EXTI0_1_IRQn);
+    NVIC_SetPriority(EXTI0_1_IRQn,2);
+    NVIC_EnableIRQ(EXTI2_3_IRQn);
+    NVIC_SetPriority(EXTI2_3_IRQn,2);
+    NVIC_EnableIRQ(EXTI4_15_IRQn);
+    NVIC_SetPriority(EXTI4_15_IRQn,2);
+    enable_ports();
+	print_string("        ");
+}
+void TIM2_IRQHandler(void) {
+    TIM2->SR &= ~TIM_SR_UIF;
+}
+void init_tim2() {
+    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+    //TIM2->DIER |= TIM_DIER_UIE; //enable the timer update interrupt
+    TIM2->PSC = 48000 - 1;
+    TIM2->ARR = 10000 - 1;
+    TIM2->CR1 &= ~TIM_CR1_DIR;
+
+    //where to set priority
+}
+
+void start_timer() {
+    TIM2->CR1 |= TIM_CR1_CEN;
+    NVIC_EnableIRQ(TIM2_IRQn);
+    NVIC_SetPriority(TIM2_IRQn,1);
+}
+uint32_t end_timer() {
+    TIM2->CR1 &= ~TIM_CR1_CEN;
+
+    int time = TIM2->CNT;
+    NVIC_DisableIRQ(TIM2_IRQn);
+    return time;
+}
+int standard_reaction_time_test() {
+
+
+    //pa0 -green LED
+    //pa1 - red LEd
+    //pa2 - button
+    while(readpinA(2) == 0); //user needs to press button to start game //pa2
+    mysleep(1000000);
+    int new_seed = end_timer();
+    srand(new_seed);
+    //uint32_t num = 100000+ rand() % (9999999 - 100000);
+    int num = 1000+ rand() % (60000 - 1000);
+    mysleep(100000);
+
+    setnA(0,0);
+    setnA(1,0);
+
+    setnA(1,1);              //turn the red led light on
+
+   // mysleep(3000000);             //a min amount of time
+    mysleep(num*480);
+    setnA(0,1);                //turn the green led on
+    setnA(1,0);               //turn the red led off
+    start_timer();
+    while(readpinA(2) == 0); //wait for user to press button
+    setnA(0,0);                //turn off green led
+    setnA(1,0);
+    int reaction_time = end_timer();
+
+    mysleep(1000000);            //wait
+    return reaction_time;
+}
+uint32_t unit_test1() {
+    //press button start timer
+    //press button end timer
+    while(readpinA(2) == 0);
+    mysleep(1000000);
+    setnA(1,1);
+    start_timer();
+    while(readpinA(2) == 0);
+    setnA(1,0);
+    uint32_t time = end_timer();
+
+    return time;
+}
+void rtt()
+{
+	int i = 0;
+    while( i < 3) {
+        int reaction_time = standard_reaction_time_test();
+//        uint32_t time = unit_test1();
+        mysleep(1000000);
+        print_string("       8");
+        i++;
+    }
+}
+
+
+void inita() {
+    //inputs PA3 (RTT select), PA6 (SMT select), PA2 (RTT button)
+    //outputs (PA0, PA1)
+    RCC -> AHBENR |= RCC_AHBENR_GPIOAEN;
+
+    GPIOA -> MODER &= ~GPIO_MODER_MODER3; //pa3
+    GPIOA-> PUPDR  &= ~GPIO_PUPDR_PUPDR3;
+    GPIOA-> PUPDR |= GPIO_PUPDR_PUPDR3_1;
+
+    GPIOA -> MODER &= ~GPIO_MODER_MODER6; //pa6
+    GPIOA-> PUPDR  &= ~GPIO_PUPDR_PUPDR6;
+    GPIOA-> PUPDR |= GPIO_PUPDR_PUPDR6_1;
+
+    GPIOA -> MODER &= ~GPIO_MODER_MODER2; //pa2
+    GPIOA-> PUPDR  &= ~GPIO_PUPDR_PUPDR2;
+    GPIOA-> PUPDR |= GPIO_PUPDR_PUPDR2_1;
+
+    //outputs
+    GPIOA -> MODER &= ~GPIO_MODER_MODER0; //pa0
+    GPIOA -> MODER |= GPIO_MODER_MODER0_0;
+    GPIOA -> MODER &= ~GPIO_MODER_MODER0_1;
+
+    GPIOA -> MODER &= ~GPIO_MODER_MODER1; //pa1
+    GPIOA -> MODER |= GPIO_MODER_MODER1_0;
+    GPIOA -> MODER &= ~GPIO_MODER_MODER1_1;
+}
+void initb() {
+   RCC -> AHBENR |= RCC_AHBENR_GPIOBEN;
+   GPIOB -> MODER &= ~GPIO_MODER_MODER1;
+   GPIOB-> PUPDR  &= ~GPIO_PUPDR_PUPDR1;
+   GPIOB-> PUPDR |= GPIO_PUPDR_PUPDR1_1;
+
+
+   //output PB0 - Green LED
+   GPIOB -> MODER &= ~GPIO_MODER_MODER0;
+   GPIOB -> MODER |= GPIO_MODER_MODER0_0;
+   GPIOB -> MODER &= ~GPIO_MODER_MODER0_1;
+}
+void initc() {
+   RCC -> AHBENR |= RCC_AHBENR_GPIOCEN;
+   //output PC0 - Yellow LED
+   GPIOC -> MODER &= ~GPIO_MODER_MODER0;
+   GPIOC -> MODER |= GPIO_MODER_MODER0_0;
+   GPIOC -> MODER &= ~GPIO_MODER_MODER0_1;
+}
+
+void setnA(int32_t pin_num, int32_t val) {
+    if(val == 0){
+
+        GPIOA -> BRR |= 1 << pin_num;
+    }
+    else{
+        GPIOA -> BSRR |= 1 << pin_num;
+
+    }
+}
+
+void setnB(int32_t pin_num, int32_t val) {
+    if(val == 0){
+
+        GPIOB -> BRR |= 1 << pin_num;
+    }
+    else{
+        GPIOB -> BSRR |= 1 << pin_num;
+
+    }
+}
+void setnC(int32_t pin_num, int32_t val) {
+    if(val == 0){
+
+        GPIOC -> BRR |= 1 << pin_num;
+    }
+    else{
+        GPIOC -> BSRR |= 1 << pin_num;
+
+    }
+}
+
+int32_t readpinA(int32_t pin_num) {
+    int32_t readit = 0;
+    readit = (GPIOA -> IDR);
+    //readit = (GPIOB -> IDR) & 0x1;
+
+    readit = (readit & (1 << pin_num)) >> pin_num;
+
+    return readit;
+}
+
+int32_t readpinB(int32_t pin_num) {
+    int32_t readit = 0;
+    readit = (GPIOB -> IDR);
+    //readit = (GPIOB -> IDR) & 0x1;
+
+    readit = (readit & (1 << pin_num)) >> pin_num;
+
+    return readit;
+}
+
+// ------------------^--RTT--^--------------------//
+
+//===========================================================================
+// Main function
+//===========================================================================
+
+int main(void) {
+    inita();
+    initb();
+    init_exti();
+
+}
