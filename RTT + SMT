@@ -336,8 +336,9 @@ char get_char(){
 }
 
 
-void print_string(const char str[])
+void print_string(const char str[], int rtt_flag)
 {
+
     const char *p = str;
     for(int i=0; i<8; i++) {
         if (*p == '\0') {
@@ -347,6 +348,12 @@ void print_string(const char str[])
             p++;
         }
     }
+	if(rtt_flag){
+		msg[0] |= 0x80;
+	}
+	else{
+		msg[0] &= ~0x80;
+	}
 }
 
 void shift_disp_right(char* str){
@@ -497,16 +504,15 @@ void display_rand(char* string){
     while(i < level){
     	int num_queue = dequeue();
 
-    	int x = level;
 
     	char rand_c = dig_char[num_queue];
 
 
     	string[6] = rand_c;
-    	print_string(string);
+    	print_string(string, 0);
     	nano_wait(700000000);
     	string[6] = ' ';
-    	print_string(string);
+    	print_string(string, 0);
     	nano_wait(200000000);
 
 
@@ -519,12 +525,12 @@ void display_rand(char* string){
     string[6] = 'O';
 
 
-    print_string(string);
+    print_string(string, 0);
     nano_wait(500000000);
     string[5] = ' ';
     string[6] = ' ';
 
-    print_string(string);
+    print_string(string, 0);
     //enqueue(69);
 
 }
@@ -541,19 +547,19 @@ int play_SMT(char* string, int level){
 			string[7] = c;
 
 
-			print_string(string);
+			print_string(string, 0);
 
 			// gets number from queue and then changes it to char.
 			int num_ran = dequeue();
 
 			if(c != dig_char[num_ran]){
-				print_string("too bad");
+				print_string("too bad", 0);
 				nano_wait(500000000);
 				return 0;
 			}
 			else if(i == level){
 				nano_wait(500000000);
-				print_string("yay  yay");
+				print_string("yay  yay", 0);
 				nano_wait(800000000);
 				return 1;
 			}
@@ -565,7 +571,8 @@ int play_SMT(char* string, int level){
 
 void clear_queue(){
 	int num = dequeue();
-	while(num != NULL){
+	// num != NULL
+	while(num){
 		num = dequeue();
 	}
 }
@@ -584,14 +591,14 @@ void setup_SMT(){
 
 
     char string[9] = "        ";
-    print_string(string);
+    print_string(string, 0);
     // Enables the keypad after
     enable_ports();
 
     int correct = 1;
 
 
-	print_string("PUSH ONE");
+	print_string("PUSH ONE", 0);
 	while(1){
 		char first = get_char();
 		if(first == '1'){
@@ -615,7 +622,7 @@ void setup_SMT(){
 			string[5] = ' ';
 			string[6] = ' ';
 			string[7] = ' ';
-			print_string(string);
+			print_string(string, 0);
 			nano_wait(5000000000);
 
 			rand_queue();
@@ -637,18 +644,18 @@ void setup_SMT(){
 		string[5] = ' ';
 		string[6] = '0' + (level - 1);
 		string[7] = ' ';
-		print_string(string);
+		print_string(string, 0);
 		nano_wait(5000000000);
 
-		print_string("    1or0");
+		print_string("    1or0", 0);
 		play_agian = get_char() - '0';
 		correct = 1;
 		level = 0;
 	}
-	print_string("     bye");
+	print_string("     bye", 0);
 	nano_wait(5000000000);
 
-	print_string("        ");
+	print_string("        ", 0);
 
 
 
@@ -667,6 +674,7 @@ void setup_SMT(){
 void inita();
 void initb();
 void initc();
+void init_tim2();
 void setnA(int32_t pin_num, int32_t val);
 void setnB(int32_t pin_num, int32_t val);
 void setnC(int32_t pin_num, int32_t val);
@@ -697,6 +705,15 @@ void EXTI2_3_IRQHandler() {
     initb();
     initc();
     init_tim2();
+
+//-------v--THINGS FOR SSD--v-------//
+    init_tim7();
+    setup_bb();
+    init_spi2();
+    setup_dma();
+    enable_dma();
+    init_tim15();
+//-------^--THINGS FOR SSD--^-------//
 
 
     while(readpinA(3) == 0); //PA3 - RTT
@@ -738,7 +755,7 @@ void init_exti(){
     NVIC_EnableIRQ(EXTI4_15_IRQn);
     NVIC_SetPriority(EXTI4_15_IRQn,2);
     enable_ports();
-	print_string("        ");
+	print_string("        ", 0);
 }
 void TIM2_IRQHandler(void) {
     TIM2->SR &= ~TIM_SR_UIF;
@@ -755,17 +772,17 @@ void init_tim2() {
 
 void start_timer() {
     TIM2->CR1 |= TIM_CR1_CEN;
-    NVIC_EnableIRQ(TIM2_IRQn);
-    NVIC_SetPriority(TIM2_IRQn,1);
+    //NVIC_EnableIRQ(TIM2_IRQn);
+    //NVIC_SetPriority(TIM2_IRQn,1);
 }
 uint32_t end_timer() {
     TIM2->CR1 &= ~TIM_CR1_CEN;
 
-    int time = TIM2->CNT;
-    NVIC_DisableIRQ(TIM2_IRQn);
+    uint32_t time = TIM2->CNT;
+    //NVIC_DisableIRQ(TIM2_IRQn);
     return time;
 }
-int standard_reaction_time_test() {
+uint32_t standard_reaction_time_test() {
 
 
     //pa0 -green LED
@@ -773,10 +790,10 @@ int standard_reaction_time_test() {
     //pa2 - button
     while(readpinA(2) == 0); //user needs to press button to start game //pa2
     mysleep(1000000);
-    int new_seed = end_timer();
+    uint32_t new_seed = end_timer();
     srand(new_seed);
     //uint32_t num = 100000+ rand() % (9999999 - 100000);
-    int num = 1000+ rand() % (60000 - 1000);
+    uint32_t num = 1000+ rand() % (60000 - 1000);
     mysleep(100000);
 
     setnA(0,0);
@@ -792,7 +809,7 @@ int standard_reaction_time_test() {
     while(readpinA(2) == 0); //wait for user to press button
     setnA(0,0);                //turn off green led
     setnA(1,0);
-    int reaction_time = end_timer();
+    uint32_t reaction_time = end_timer();
 
     mysleep(1000000);            //wait
     return reaction_time;
@@ -800,26 +817,46 @@ int standard_reaction_time_test() {
 uint32_t unit_test1() {
     //press button start timer
     //press button end timer
+	setnA(1,0);
+	setnA(0,0);
     while(readpinA(2) == 0);
     mysleep(1000000);
     setnA(1,1);
     start_timer();
     while(readpinA(2) == 0);
+    mysleep(1000000);
     setnA(1,0);
     uint32_t time = end_timer();
 
     return time;
 }
+void int_to_char(int x)
+{
+    char string[9] = "        ";
+    x = x / 10;
+    string[3] = x%10 + '0';
+    x = x / 10;
+    string[2] = x%10 + '0';
+    x = x / 10;
+    string[1] = x%10 + '0';
+    x = x / 10;
+    string[0] = x%10 + '0';
+
+    print_string(string, 1);
+}
 void rtt()
 {
 	int i = 0;
-    while( i < 3) {
-        int reaction_time = standard_reaction_time_test();
+	uint32_t time = unit_test1();
+	int_to_char(time);
+
+   /* while( i < 3) {
+    	uint32_t reaction_time = standard_reaction_time_test();
 //        uint32_t time = unit_test1();
         mysleep(1000000);
-        print_string("       8");
+        int_to_char(reaction_time);
         i++;
-    }
+    } */
 }
 
 
