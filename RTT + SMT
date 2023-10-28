@@ -7,7 +7,7 @@
 // ------------------v--SMT--v--------------------//
 
 char dig_char[] = "0123456789ABCDEF";
-
+volatile uint32_t new_seed = 0;
 
 
 struct node
@@ -706,14 +706,7 @@ void EXTI2_3_IRQHandler() {
     initc();
     init_tim2();
 
-//-------v--THINGS FOR SSD--v-------//
-    init_tim7();
-    setup_bb();
-    init_spi2();
-    setup_dma();
-    enable_dma();
-    init_tim15();
-//-------^--THINGS FOR SSD--^-------//
+
 
 
     while(readpinA(3) == 0); //PA3 - RTT
@@ -754,7 +747,6 @@ void init_exti(){
     NVIC_SetPriority(EXTI2_3_IRQn,2);
     NVIC_EnableIRQ(EXTI4_15_IRQn);
     NVIC_SetPriority(EXTI4_15_IRQn,2);
-    enable_ports();
 	print_string("        ", 0);
 }
 void TIM2_IRQHandler(void) {
@@ -807,7 +799,7 @@ uint32_t end_timer() {
 //}
 
 
-uint32_t standard_reaction_time_test() {
+uint32_t standard_reaction_time_test(int test_num) {
 
 
     //pa0 -green LED
@@ -815,8 +807,14 @@ uint32_t standard_reaction_time_test() {
     //pa2 - button
     while(readpinA(2) == 0); //user needs to press button to start game //pa2
     mysleep(1000000);
-    uint32_t new_seed = end_timer();
-    srand(new_seed);
+    if(test_num == 0){
+    	new_seed = end_timer();
+        srand(new_seed);
+    }
+    else{
+    	srand(new_seed + test_num);
+    }
+//    uint32_t new_seed = end_timer();
     //uint32_t num = 100000+ rand() % (9999999 - 100000);
     uint32_t num = 1000+ rand() % (60000 - 1000);
     mysleep(100000);
@@ -873,17 +871,14 @@ void int_to_char(int x)
 void rtt()
 {
 	int i = 0;
-	uint32_t time = unit_test1();
-	//uint32_t reaction_time = standard_reaction_time_test();
-	int_to_char(time);
 
-   /* while( i < 3) {
-    	uint32_t reaction_time = standard_reaction_time_test();
+    while( i < 3) {
+    	uint32_t reaction_time = standard_reaction_time_test(i);
 //        uint32_t time = unit_test1();
         mysleep(1000000);
         int_to_char(reaction_time);
         i++;
-    } */
+    }
 }
 
 
@@ -992,6 +987,16 @@ int32_t readpinB(int32_t pin_num) {
 //===========================================================================
 
 int main(void) {
+	//-------v--THINGS FOR SSD--v-------//
+	    init_tim7();
+	    setup_bb();
+	    init_spi2();
+	    setup_dma();
+	    enable_dma();
+	    init_tim15();
+	//-------^--THINGS FOR SSD--^-------//
+
+
     inita();
     initb();
     init_exti();
