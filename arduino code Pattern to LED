@@ -1,0 +1,80 @@
+#include <Keypad.h>
+const byte ROWS = 4;
+const byte COLS = 4;
+
+const byte SER = 2; // Shift Register Serial Data pin
+const byte CLK = 3; // Shift Register Clock pin
+const byte LAT = 4; // Shift Register Latch pin
+const byte OE = 5; // Shift Register Output Enable pin
+
+char keys[ROWS][COLS] = {
+  {0x10, 0x0C, 0x08, 0x04},
+  {0x0F, 0x0B, 0x07, 0x03},
+  {0x0E, 0x0A, 0x06, 0x02},
+  {0x0D, 0x09, 0x05, 0x01}
+};
+
+byte rowPins[ROWS] = {10, 11, 12, 13}; //connect to the row pinouts of the keypad
+byte colPins[COLS] = {6, 7, 8, 9}; //connect to the column pinouts of the keypad
+
+Keypad keypad = Keypad( makeKeymap(keys), colPins, rowPins, ROWS, COLS );
+
+unsigned int j = 0;
+unsigned short pattern = 0x0000;
+
+unsigned int shiftarray[ROWS];
+
+void add_frame(unsigned int i, unsigned int shiftbyte) {
+  shiftarray[i] = shiftbyte;
+}
+
+void flash_pattern(unsigned short pattern) {
+  unsigned int row = 0xE;
+  unsigned int shiftbyte;
+  // Iterate through each 4 bit segment of 'pattern'
+  for (unsigned int i = 0; i < ROWS; i++) {
+
+    shiftbyte = (row << 4) + (pattern % 16);
+    // If that LED is a one, add that frame to the list of frames
+    add_frame(i, shiftbyte);
+
+    pattern >>= 4;
+    row <<= 1;
+    row += 1;
+  } 
+}
+
+void display_4rows_12ms() {
+  for (int i = 0; i < ROWS; i++) {
+    digitalWrite(LAT,LOW);
+    shiftOut(SER,CLK,MSBFIRST,shiftarray[i]);
+    shiftOut(SER,CLK,MSBFIRST,B00000000);
+    digitalWrite(LAT,HIGH);
+    delay(3); 
+  }
+}
+
+void setup() 
+{
+  Serial.begin(9600);
+
+  pinMode(OE, OUTPUT); 
+  pinMode(SER, OUTPUT); 
+  pinMode(CLK, OUTPUT); 
+  pinMode(LAT, OUTPUT); 
+  analogWrite(OE, 100);
+
+  flash_pattern(pattern); // Change this hex to flash a different pattern. MSB is (1, 1), LSB is (4, 4)
+}
+
+void loop() {
+  display_4rows_12ms();
+  char key = keypad.getKey();// Read the key
+  // Print if key pressed
+  if (key){
+    Serial.println(pattern);
+    pattern |= (0x0001 << (int(key) - 1));
+    Serial.println(int(key));
+    flash_pattern(pattern);
+  }
+}
