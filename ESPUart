@@ -10,7 +10,7 @@ void setn(int32_t pin_num, int32_t val);
 int32_t readpin(int32_t pin_num);
 void init_usart5();
 void USART5_SendChar(char c);
-
+void USART5_SendString(char* str, char test);
 void mysleep(int time) {
     for(int n = 0; n < time; n++);
 }
@@ -34,9 +34,9 @@ uint32_t end_timer() {
 
 
 uint32_t standard_reaction_time_test() {
-	int button = 5;
-	int red = 6;
-	int green = 7;
+	int button = 2;
+	int red = 1;
+	int green = 0;
     int num = rand();
 
     while(readpin(button) == 0);//user needs to press button to start game
@@ -66,30 +66,30 @@ int main(void)
 	init_tim2();
 	init_usart5();
 	uint32_t reaction_time = standard_reaction_time_test();
-	int temp = 12345;
+	//int temp = 12345;
+	//uint32_t reaction_time = 123;
 	char floatstr[20]; //random sze for now
-	setn(7,1);                //turn off green led
+	setn(0,1);
 	sprintf(floatstr, "%lu", reaction_time);
-
-	USART5_SendString(floatstr);
-	setn(6,1);                //turn off green led
+	USART5_SendString(floatstr, 'r');
+	setn(1,1);
 
 }
 
 void inita() {
 	//input PA5
 	RCC -> AHBENR |= RCC_AHBENR_GPIOAEN;
-	GPIOA -> MODER &= ~GPIO_MODER_MODER5;
-	GPIOA-> PUPDR  &= ~GPIO_PUPDR_PUPDR5;
+	GPIOA -> MODER &= ~GPIO_MODER_MODER2;
+	GPIOA-> PUPDR  &= ~GPIO_PUPDR_PUPDR2;
 
-	GPIOA-> PUPDR |= GPIO_PUPDR_PUPDR5_1;
+	GPIOA-> PUPDR |= GPIO_PUPDR_PUPDR2_1;
 
 	//output PA6 & PA7
-	GPIOA -> MODER &= ~GPIO_MODER_MODER6;
-	GPIOA -> MODER &= ~GPIO_MODER_MODER7;
+	GPIOA -> MODER &= ~GPIO_MODER_MODER0;
+	GPIOA -> MODER &= ~GPIO_MODER_MODER1;
 
-	GPIOA -> MODER |= GPIO_MODER_MODER6_0;
-	GPIOA -> MODER |= GPIO_MODER_MODER7_0;
+	GPIOA -> MODER |= GPIO_MODER_MODER0_0;
+	GPIOA -> MODER |= GPIO_MODER_MODER1_0;
 }
 
 
@@ -102,7 +102,9 @@ void USART5_SendChar(char c) {
     USART5->TDR = c;
 }
 
-void USART5_SendString(char* str) {
+void USART5_SendString(char* str, char test) {
+	USART5_SendChar(test);
+	USART5_SendChar('\n');
     while (*str) {
         USART5_SendChar(*str++);
     }
