@@ -19,19 +19,22 @@ void handleRoot() {
 }
 
 void handledata() {
- int data = 0;
+ int data = 7;
+ String test = "a";
  if(nano.available()){
-  String test = nano.readStringUntil('\n'); //can use to check which test is being received
+  test = nano.readStringUntil('\n'); //can use to check which test is being received
   data = nano.parseInt();
-  if(test[0] == 'v'){
-    data = data * 10000; //encode 4 zeros for sequence
-  }
-  else if(test[0] == 's'){
-    data = data * 100000000; //encode 5 zeros for sequence
-  }
+  //if(test[0] == 'v'){
+  //  data = data * 100; //encode 4 zeros for sequence
+  //}
+  //else if(test[0] == 's'){
+   // data = data * 1000; //encode 5 zeros for sequence
+  //}
  }
- String stringdata = String(data);
- server.send(200, "text/plain", stringdata); //Send ADC value only to client ajax request
+ String stringdata = test + String(data);
+
+ server.send(200, "text/plain", test); //Send ADC value only to client ajax request
+
 }
 
 //==============================================================
