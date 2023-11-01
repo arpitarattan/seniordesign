@@ -10,9 +10,11 @@ const char MAIN_page[] PROGMEM = R"=====(
   Visual Memory Level : <span id="VT">0</span><br>
   Sequence Memory Level : <span id="ST">0</span><br>
 </div><script>
+
 function sendData(data) {
   var xhttp = new XMLHttpRequest();
-  if(data.length >= 5 && data.length <= 9){
+  var length = data.length;
+  if(data[0] == 'v'){
     xhttp.onreadystatechange = function() {
       if (this.readyState == 4 && this.status == 200) {
         document.getElementById("VT").innerHTML = this.responseText;
@@ -20,10 +22,9 @@ function sendData(data) {
     };
     xhttp.open("POST", "/index", true); // Specify just the endpoint URL
     xhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    data = data % 10000;
     var params = "VT=" + data; // Create the POST data
   }
-  else if(data.length >= 10){
+  else if(data[0] == 's'){
     xhttp.onreadystatechange = function() {
       if (this.readyState == 4 && this.status == 200) {
         document.getElementById("ST").innerHTML = this.responseText;
@@ -31,7 +32,6 @@ function sendData(data) {
     };
     xhttp.open("POST", "/index", true); // Specify just the endpoint URL
     xhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    data = data % 100000000;
     var params = "ST=" + data; // Create the POST data
   }
   else{
@@ -50,7 +50,7 @@ function sendData(data) {
 setInterval(function() {
   // Call a function repetatively with 2 Second interval
   sendData();
-}, 2000); //2000mSeconds update rate
+}, 1000); //2000mSeconds update rate
 
 </script>
 </body>
