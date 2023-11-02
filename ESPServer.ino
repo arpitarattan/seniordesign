@@ -5,7 +5,7 @@
 #include "index.h"
 
 SoftwareSerial nano(3,1); //RX, TX
-//SSID and Password of your WiFi router
+
 const char* ssid = "Arpita";
 const char* password = "arpita12";
 ESP8266WebServer server(80); //Server on port 80
@@ -17,25 +17,29 @@ void handleRoot() {
  String s = MAIN_page; //Read HTML contents
  server.send(200, "text/html", s); //Send web page
 }
-
 void handledata() {
- int data = 7;
- String test = "a";
+ int data;
+ String test = "";
+ String sendstring = "";
  if(nano.available()){
   test = nano.readStringUntil('\n'); //can use to check which test is being received
   data = nano.parseInt();
-  //if(test[0] == 'v'){
-  //  data = data * 100; //encode 4 zeros for sequence
-  //}
-  //else if(test[0] == 's'){
-   // data = data * 1000; //encode 5 zeros for sequence
-  //}
  }
- String stringdata = test + String(data);
+ 
+  if(test[0] == 'v'){
+    sendstring = "Visual Memory Level ->" + String(data);
+  }
+  else if(test[0] == 's'){
+    sendstring = "Sequence Memory Level ->" + String(data);
+  }
+  else if(test[0] == 'r'){
+    sendstring = "Reaction time ->" + String(data) + " ms";
+  }
 
- server.send(200, "text/plain", test); //Send ADC value only to client ajax request
+ server.send(200, "text/plain", sendstring); //Send ADC value only to client ajax request
 
 }
+
 
 //==============================================================
 //                  SETUP
@@ -51,7 +55,7 @@ void setup(void){
     delay(500);
   }
   Serial.println(WiFi.localIP());  //IP address assigned to your ESP
- 
+  
   server.on("/", handleRoot);      //Which routine to handle at root location
   server.on("/index", handledata);      //Which routine to handle at root location
 
