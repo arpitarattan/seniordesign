@@ -5,52 +5,30 @@ const char MAIN_page[] PROGMEM = R"=====(
 
 <div id="demo">
 <h1>Welcome to PBU Analytics</h1>
-</div><div>
-	Reaction Time : <span id="RT">0</span><br>
-  Visual Memory Level : <span id="VT">0</span><br>
-  Sequence Memory Level : <span id="ST">0</span><br>
-</div><script>
+</div>
 
+<div>
+	Test: <span id="T">0</span><br>
+</div>
+
+<script>
 function sendData(data) {
   var xhttp = new XMLHttpRequest();
-  var length = data.length;
-  if(data[0] == 'v'){
-    xhttp.onreadystatechange = function() {
-      if (this.readyState == 4 && this.status == 200) {
-        document.getElementById("VT").innerHTML = this.responseText;
-      }
-    };
-    xhttp.open("POST", "/index", true); // Specify just the endpoint URL
-    xhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    var params = "VT=" + data; // Create the POST data
-  }
-  else if(data[0] == 's'){
-    xhttp.onreadystatechange = function() {
-      if (this.readyState == 4 && this.status == 200) {
-        document.getElementById("ST").innerHTML = this.responseText;
-      }
-    };
-    xhttp.open("POST", "/index", true); // Specify just the endpoint URL
-    xhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    var params = "ST=" + data; // Create the POST data
-  }
-  else{
-    xhttp.onreadystatechange = function() {
-      if (this.readyState == 4 && this.status == 200) {
-        document.getElementById("RT").innerHTML = this.responseText;
-      }
-    };
-    xhttp.open("POST", "/index", true); // Specify just the endpoint URL
-    xhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    var params = "RT=" + data; // Create the POST data
-  }
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      document.getElementById("T").innerHTML = this.responseText;
+    }
+  };
+  xhttp.open("POST", "/index", true); // Specify just the endpoint URL
+  xhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+  var params = "T" + data;
   xhttp.send(params); // Send the POST request with the data
 }
 
 setInterval(function() {
   // Call a function repetatively with 2 Second interval
   sendData();
-}, 1000); //2000mSeconds update rate
+}, 5000); //2000mSeconds update rate
 
 </script>
 </body>
