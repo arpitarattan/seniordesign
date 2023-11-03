@@ -58,6 +58,11 @@ char get_keypress(void);  // wait for only a button press event.
 float getfloat(void);     // read a floating-point number from keypad
 void show_keys(void);     // demonstrate get_key_event()
 
+
+volatile int milliseconds = 0; //global variable to count the milliseconds
+volatile int input_delay = 0; //global variable to control the delay length
+volatile int delay_completed = 0; //global variable to stop the interrupt and timer
+volatile int press_too_early = 0; //global variable to see if the user pressed the button to early
 //===========================================================================
 // Configure GPIOC
 //===========================================================================
@@ -348,21 +353,21 @@ void print_string(const char str[], int rtt_flag)
             p++;
         }
     }
-	if(rtt_flag){
-		msg[0] |= 0x80;
-	}
-	else{
-		msg[0] &= ~0x80;
-	}
+    if(rtt_flag){
+        msg[0] |= 0x80;
+    }
+    else{
+        msg[0] &= ~0x80;
+    }
 }
 
 void shift_disp_right(char* str){
-	char str_7 = str[7];
-	char str_6 = str[6];
-	char str_5 = str[5];
-	str[6] = str_7;
-	str[5] = str_6;
-	str[4] = str_5;
+    char str_7 = str[7];
+    char str_6 = str[6];
+    char str_5 = str[5];
+    str[6] = str_7;
+    str[5] = str_6;
+    str[4] = str_5;
 }
 
 //===========================================================================
@@ -438,17 +443,17 @@ void rand_queue()
   //display();
   //dequeue();
 
-	srand(srand_val * srand_val * level);
-	for(int i =0; i< level ; i++){
-		int n = rand() % 16;
-		enqueue(n);
-	}
-	//display();
+    srand(srand_val * srand_val * level);
+    for(int i =0; i< level ; i++){
+        int n = rand() % 16;
+        enqueue(n);
+    }
+    //display();
 
 
-	//display();
+    //display();
 
-	//printf("\n\nnumber first in queue is %d\n", num);
+    //printf("\n\nnumber first in queue is %d\n", num);
 }
 
 void enqueue(int item)
@@ -483,7 +488,7 @@ int dequeue()
         temp = front;
         if(front == rear){
            rear = NULL;
-		}
+        }
         front = front->next;
         //printf("\n\n%d deleted", temp->data);
         num = temp -> data;
@@ -500,25 +505,25 @@ int dequeue()
 // GAME functions
 //===========================================================================
 void display_rand(char* string){
-	int i = 0;
+    int i = 0;
     while(i < level){
-    	int num_queue = dequeue();
+        int num_queue = dequeue();
 
 
-    	char rand_c = dig_char[num_queue];
+        char rand_c = dig_char[num_queue];
 
 
-    	string[6] = rand_c;
-    	print_string(string, 0);
-    	nano_wait(700000000);
-    	string[6] = ' ';
-    	print_string(string, 0);
-    	nano_wait(200000000);
+        string[6] = rand_c;
+        print_string(string, 0);
+        nano_wait(700000000);
+        string[6] = ' ';
+        print_string(string, 0);
+        nano_wait(200000000);
 
 
 
-    	enqueue(num_queue);
-    	i++;
+        enqueue(num_queue);
+        i++;
     }
     nano_wait(400000000);
     string[5] = 'G';
@@ -536,45 +541,45 @@ void display_rand(char* string){
 }
 
 int play_SMT(char* string, int level){
-	int i = 1;
-	//enqueue(69);
-	for(;;){
-			char c = get_char();
+    int i = 1;
+    //enqueue(69);
+    for(;;){
+            char c = get_char();
 
-			// used to push data from digit 4 -7 adn repeat 1234 -> 5234 -> 5634 ...
-			//int digit = i % 4;
-			shift_disp_right(string);
-			string[7] = c;
-
-
-			print_string(string, 0);
-
-			// gets number from queue and then changes it to char.
-			int num_ran = dequeue();
-
-			if(c != dig_char[num_ran]){
-				print_string("too bad", 0);
-				nano_wait(500000000);
-				return 0;
-			}
-			else if(i == level){
-				nano_wait(500000000);
-				print_string("yay  yay", 0);
-				nano_wait(800000000);
-				return 1;
-			}
-			i++;
+            // used to push data from digit 4 -7 adn repeat 1234 -> 5234 -> 5634 ...
+            //int digit = i % 4;
+            shift_disp_right(string);
+            string[7] = c;
 
 
-		}
+            print_string(string, 0);
+
+            // gets number from queue and then changes it to char.
+            int num_ran = dequeue();
+
+            if(c != dig_char[num_ran]){
+                print_string("too bad", 0);
+                nano_wait(500000000);
+                return 0;
+            }
+            else if(i == level){
+                nano_wait(500000000);
+                print_string("yay  yay", 0);
+                nano_wait(800000000);
+                return 1;
+            }
+            i++;
+
+
+        }
 }
 
 void clear_queue(){
-	int num = dequeue();
-	// num != NULL
-	while(num){
-		num = dequeue();
-	}
+    int num = dequeue();
+    // num != NULL
+    while(num){
+        num = dequeue();
+    }
 }
 
 void setup_SMT(){
@@ -598,64 +603,64 @@ void setup_SMT(){
     int correct = 1;
 
 
-	print_string("PUSH ONE", 0);
-	while(1){
-		char first = get_char();
-		if(first == '1'){
-				break;
-		}
+    print_string("PUSH ONE", 0);
+    while(1){
+        char first = get_char();
+        if(first == '1'){
+                break;
+        }
 
 
-	}
+    }
 
-	int play_agian = 1;
-	while(play_agian != 0){
+    int play_agian = 1;
+    while(play_agian != 0){
 
-		while(correct){
-			level += 1;
+        while(correct){
+            level += 1;
 
-			string[0] = ' ';
-			string[1] = ' ';
-			string[2] = ' ';
-			string[3] = ' ';
-			string[4] = ' ';
-			string[5] = ' ';
-			string[6] = ' ';
-			string[7] = ' ';
-			print_string(string, 0);
-			nano_wait(5000000000);
+            string[0] = ' ';
+            string[1] = ' ';
+            string[2] = ' ';
+            string[3] = ' ';
+            string[4] = ' ';
+            string[5] = ' ';
+            string[6] = ' ';
+            string[7] = ' ';
+            print_string(string, 0);
+            nano_wait(5000000000);
 
-			rand_queue();
+            rand_queue();
 
-			RCC->AHBENR &= ~RCC_AHBENR_GPIOCEN;
-			display_rand(string);
-			// Enables the keypad after
-			enable_ports();
+            RCC->AHBENR &= ~RCC_AHBENR_GPIOCEN;
+            display_rand(string);
+            // Enables the keypad after
+            enable_ports();
 
-			correct = play_SMT(string, level);
-			clear_queue();
-		}
-		clear_queue();
-		string[0] = ' ';
-		string[1] = ' ';
-		string[2] = ' ';
-		string[3] = ' ';
-		string[4] = ' ';
-		string[5] = ' ';
-		string[6] = '0' + (level - 1);
-		string[7] = ' ';
-		print_string(string, 0);
-		nano_wait(5000000000);
+            correct = play_SMT(string, level);
+            clear_queue();
+        }
+        clear_queue();
+        string[0] = ' ';
+        string[1] = ' ';
+        string[2] = ' ';
+        string[3] = ' ';
+        string[4] = ' ';
+        string[5] = ' ';
+        string[6] = '0' + (level - 1);
+        string[7] = ' ';
+        print_string(string, 0);
+        nano_wait(5000000000);
 
-		print_string("    1or0", 0);
-		play_agian = get_char() - '0';
-		correct = 1;
-		level = 0;
-	}
-	print_string("     bye", 0);
-	nano_wait(5000000000);
+        print_string("    1or0", 0);
+        play_agian = get_char() - '0';
+        correct = 1;
+        level = 0;
+    }
+    print_string("     bye", 0);
+    nano_wait(5000000000);
 
-	print_string("        ", 0);
+    print_string("        ", 0);
 
 
 
@@ -687,6 +692,7 @@ uint32_t end_timer();
 void mysleep(int time) {
     for(int n = 0; n < time; n++);
 }
+// VMT Interupt
 void EXTI0_1_IRQHandler() {
     while(readpinB(1) == 0); //PB1 - VMT
     EXTI->PR |= EXTI_PR_PR1;
@@ -694,19 +700,15 @@ void EXTI0_1_IRQHandler() {
        // mysleep(10000);
     setnB(0,1);
     mysleep(1000000);
-    //setnA(7,1);
-    //rtt();
+    //vtt();
     EXTI->PR &= ~EXTI_PR_PR1;
-   // }
-    setnB(0,0);
+
 }
 void EXTI2_3_IRQHandler() {
     inita();
     initb();
     initc();
     init_tim2();
-
-
 
 
     while(readpinA(3) == 0); //PA3 - RTT
@@ -720,7 +722,7 @@ void EXTI2_3_IRQHandler() {
 void EXTI4_15_IRQHandler() {
     while(readpinA(6) == 0); //PA6 - SMT
     EXTI->PR |= EXTI_PR_PR6;
-	setup_SMT();
+    setup_SMT();
 
     EXTI->PR &= ~EXTI_PR_PR6;
 }
@@ -747,7 +749,7 @@ void init_exti(){
     NVIC_SetPriority(EXTI2_3_IRQn,2);
     NVIC_EnableIRQ(EXTI4_15_IRQn);
     NVIC_SetPriority(EXTI4_15_IRQn,2);
-	print_string("        ", 0);
+    print_string("        ", 0);
 }
 void TIM2_IRQHandler(void) {
     TIM2->SR &= ~TIM_SR_UIF;
@@ -776,47 +778,69 @@ uint32_t end_timer() {
     NVIC_DisableIRQ(TIM2_IRQn);
     return time;
 }
-//int TIM2_IRQHandler(void) {
-//    TIM2->SR &= ~TIM_SR_UIF;
-//    int milliseconds = 0;
-//    if(TIM2->SR & TIM_SR_UIF) {
-//        TIM2->SR &= ~TIM_SR_UIF;
-//        milliseconds++;
-//        if(readpinA(2) == 1) {
-//            return milliseconds;
-//        }
-//    }
-//    return 0;
-//}
-//void init_tim2() {
-//    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
-//    TIM2->DIER |= TIM_DIER_UIE; //enable the timer update interrupt
-//    TIM2->PSC = 48000 - 1;
-//    TIM2->ARR = 10000 - 1;
-//    TIM2->CR1 &= ~TIM_CR1_DIR;
-//    NVIC_EnableIRQ(TIM2_IRQn);
-//    //where to set priority
-//}
+void init_tim14() {
+    RCC->APB1ENR |= RCC_APB1ENR_TIM14EN;
+    TIM14->DIER |= TIM_DIER_UIE; //enable the timer update interrupt
+    TIM14->PSC = 48 - 1;
+    TIM14->ARR = 1000 - 1;
+    TIM14->CR1 |= TIM_CR1_DIR; //want the timer to count up
 
+    TIM14->CR1 |= TIM_CR1_CEN;
+
+}
+void TIM14_IRQHandler(void) {
+    int ms = 0;
+    while(!delay_completed) {
+        if(readpinA(2) == 1) {
+            press_too_early = 1;
+            TIM14->CR1 &= ~TIM_CR1_CEN;
+            delay_completed = 1;
+            return;
+        }
+        if((TIM14->SR & TIM_SR_UIF) != 0) {
+            TIM14 ->SR &= ~TIM_SR_UIF;
+            milliseconds++;
+            ms = milliseconds;
+            if(milliseconds == input_delay) {
+                TIM14->CR1 &= ~TIM_CR1_CEN;
+                delay_completed = 1;
+                break;
+            }
+        }
+    }
+}
+void TIM14_Delay(int ms) {
+    input_delay = ms-500;
+    NVIC_EnableIRQ(TIM14_IRQn);
+    NVIC_SetPriority(TIM14_IRQn,1);
+    if(delay_completed == 1) {
+        NVIC_DisableIRQ(TIM14_IRQn);
+        input_delay = 0;
+        delay_completed = 0;
+        milliseconds = 0;
+    }
+}
 
 uint32_t standard_reaction_time_test(int test_num) {
 
-
+    init_tim14();
     //pa0 -green LED
     //pa1 - red LEd
     //pa2 - button
     while(readpinA(2) == 0); //user needs to press button to start game //pa2
     mysleep(1000000);
+    print_string("        ", 0);
+
     if(test_num == 0){
-    	new_seed = end_timer();
+        new_seed = end_timer();
         srand(new_seed);
     }
     else{
-    	srand(new_seed + test_num);
+        srand(new_seed + test_num);
     }
 //    uint32_t new_seed = end_timer();
     //uint32_t num = 100000+ rand() % (9999999 - 100000);
-    uint32_t num = 1000+ rand() % (60000 - 1000);
+    uint32_t num = 3000+ rand() % (7000 - 3000);
     mysleep(100000);
 
     setnA(0,0);
@@ -825,9 +849,16 @@ uint32_t standard_reaction_time_test(int test_num) {
     setnA(1,1);              //turn the red led light on
 
    // mysleep(3000000);             //a min amount of time
-    mysleep(num*480);
+    //mysleep(num*480);
+    TIM14_Delay(num);
     setnA(0,1);                //turn the green led on
     setnA(1,0);               //turn the red led off
+    if(press_too_early == 1) {
+        setnA(0,0);
+        press_too_early = 0;
+        print_string("ERR     ", 0);
+        return 0;
+    }
     start_timer();
     while(readpinA(2) == 0); //wait for user to press button
     setnA(0,0);                //turn off green led
@@ -841,8 +872,8 @@ uint32_t unit_test1() {
     //press button start timer
     //press button end timer
     end_timer();
-	setnA(1,0);
-	setnA(0,0);
+    setnA(1,0);
+    setnA(0,0);
     while(readpinA(2) == 0);
     mysleep(1000000);
     setnA(1,1);
@@ -870,15 +901,24 @@ void int_to_char(int x)
 }
 void rtt()
 {
-	int i = 0;
-
+    init_tim14();
+    int i = 0;
+    int sum = 0;
     while( i < 3) {
-    	uint32_t reaction_time = standard_reaction_time_test(i);
+        uint32_t reaction_time = standard_reaction_time_test(i);
 //        uint32_t time = unit_test1();
         mysleep(1000000);
-        int_to_char(reaction_time);
-        i++;
+        if(reaction_time != 0){
+            sum += reaction_time;
+            int_to_char(reaction_time);
+            i++;
+        }
     }
+    sum = sum/3;
+    mysleep(1000000);
+    print_string("0000    ",0);
+    mysleep(1000000);
+    int_to_char(sum);
 }
 
 
@@ -987,14 +1027,14 @@ int32_t readpinB(int32_t pin_num) {
 //===========================================================================
 
 int main(void) {
-	//-------v--THINGS FOR SSD--v-------//
-	    init_tim7();
-	    setup_bb();
-	    init_spi2();
-	    setup_dma();
-	    enable_dma();
-	    init_tim15();
-	//-------^--THINGS FOR SSD--^-------//
+    //-------v--THINGS FOR SSD--v-------//
+        init_tim7();
+        setup_bb();
+        init_spi2();
+        setup_dma();
+        enable_dma();
+        init_tim15();
+    //-------^--THINGS FOR SSD--^-------//
 
 
     inita();
