@@ -1,0 +1,76 @@
+#include "stm32f0xx.h"
+#include <string.h> // for memmove()
+#include <stdlib.h> // for srandom() and random()
+
+
+
+// 16 history bytes.  Each byte represents the last 8 samples of a button.
+uint8_t hist_B[16];
+char queue_B[2];  // A two-entry queue of button press/release events.
+int qin_B;        // Which queue entry is next for input
+int qout_B;       // Which queue entry is next for output
+
+const char keymap_B[] = "DE0FC987B654A321";
+
+
+int keypresses_B = 0;
+
+void push_queue_B(int n) {
+    queue_B[qin_B] = n;
+    qin_B ^= 1;
+}
+
+char pop_queue_B() {
+    char tmp = queue_B[qout_B];
+    queue_B[qout_B] = 0;
+    qout_B ^= 1;
+    return tmp;
+}
+
+void update_history_B(int c, int rows)
+{
+    // We used to make students do this in assembly language.
+    for(int i = 0; i < 4; i++) {
+        hist_B[4*c+i] = (hist_B[4*c+i]<<1) + ((rows>>i)&1);
+        if (hist_B[4*c+i] == 0x01)
+            push_queue_B(0x00 | keymap_B[4*c+i]);
+//        if (hist[4*c+i] == 0xfe)
+//            push_queue(keymap[4*c+i]);
+    }
+}
+
+void drive_column_B(int c)
+{
+    GPIOB->BSRR = 0xF00000 | ~(1 << (c + 4));
+}
+
+int read_rows_B()
+{
+    return ((~GPIOB->IDR) & 0xF00) >> 8;
+}
+
+char get_key_event_B() {
+	for(;;) {
+		asm volatile ("wfi" : :);   // wait for an interrupt
+		keypresses_B += 1;
+		if (queue_B[qout_B] != 0)
+			break;
+	}
+    return pop_queue_B();
+}
+
+char get_keypress_B() {
+    char event;
+    for(;;) {
+        // Wait for every button event...
+        event = get_key_event_B();
+        break;
+        // ...but ignore if it's a release.
+//        if (event & 0x80)
+//            break;
+    }
+    return event & 0x7f;
+}
+
+
+
