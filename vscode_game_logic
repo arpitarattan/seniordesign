@@ -1,0 +1,87 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+
+
+//getting user input
+// char get_key_event() {
+// 	for(;;) {
+// 		asm volatile ("wfi" : :);   // wait for an interrupt
+// 		keypresses += 1;
+// 		if (queue[qout] != 0)
+// 			break;
+// 	}
+//     return pop_queue();
+// }
+
+// char get_keypress() {
+//     char event;
+//     for(;;) {
+//         // Wait for every button event...
+//         event = get_key_event();
+//         break;
+//         // ...but ignore if it's a release.
+// //        if (event & 0x80)
+// //            break;
+//     }
+//     return event & 0x7f;
+// }
+//get random 16-but number //
+unsigned short get_random() {
+    unsigned short num = 0;
+    srand(100);
+    for(int i = 0; i < 16; i++) {
+       // num |= rand() % 2;
+        unsigned short x = rand() % 2;
+        printf("%d", x);
+        num |= x;
+        num = num << 1;
+    }
+    num = num >> 1;
+    printf("\ndecimal value: %hu \n", num);
+    return num;
+}
+int num_of_ones(unsigned short num) {
+    unsigned short temp = num;
+    int needed_presses = 0;
+    int bit;
+    for(int i = 0; i < 16; i++) {
+        bit = (temp >> i) & 1;
+        if(bit == 1) {
+            needed_presses++;
+        }
+    }
+    printf("needed_presses: %d\n",needed_presses);
+    return needed_presses;
+}
+bool vmt(int level) {
+    unsigned short num = get_random();
+    int total_ones = num_of_ones(num);
+    int numbers_entered = 0;
+    int fail_pattern = 0;
+    while(numbers_entered < total_ones) {
+        char key = get_keypress();
+        if(key && num) {
+            //send green to display function but also need to continue displaying the previous correct inputs 
+            //send delay value to diplay function 
+            numbers_entered++;
+        }
+        else {
+            //send red to display function 
+            //end test 
+            return 0;
+        }
+        break;
+    }
+}
+int main() {
+    int level = 0;
+    bool cont = vmt(level);
+    while(cont) {
+        level++;
+        cont = vmt(level);
+    }
+}
+
+
+
